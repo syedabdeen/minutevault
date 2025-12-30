@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 interface ActionItem {
   task: string;
@@ -191,7 +191,7 @@ export function generateMOMPdf(options: PDFGeneratorOptions): jsPDF {
     yPos += 14;
 
     // Use autoTable for action items
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: yPos,
       head: [["#", "Task", "Responsible", "Due Date", "Status"]],
       body: actionItems.map((item, idx) => [
@@ -224,7 +224,7 @@ export function generateMOMPdf(options: PDFGeneratorOptions): jsPDF {
       },
     });
     
-    yPos = (doc as any).lastAutoTable.finalY + 15;
+    yPos = (doc as any).lastAutoTable?.finalY + 15 || yPos + 50;
   }
 
   // Transcript Section
