@@ -59,6 +59,108 @@ export type Database = {
         }
         Relationships: []
       }
+      pricing_settings: {
+        Row: {
+          id: string
+          lifetime_price: number
+          offer_description: string | null
+          offer_enabled: boolean | null
+          offer_end_date: string | null
+          offer_price: number | null
+          offer_start_date: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          lifetime_price?: number
+          offer_description?: string | null
+          offer_enabled?: boolean | null
+          offer_end_date?: string | null
+          offer_price?: number | null
+          offer_start_date?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          lifetime_price?: number
+          offer_description?: string | null
+          offer_enabled?: boolean | null
+          offer_end_date?: string | null
+          offer_price?: number | null
+          offer_start_date?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          mobile: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name: string
+          id: string
+          mobile?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          mobile?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          activated_by: string | null
+          created_at: string
+          id: string
+          lifetime_activated_at: string | null
+          payment_status: string | null
+          plan: Database["public"]["Enums"]["subscription_plan"]
+          trial_end_date: string | null
+          trial_start_date: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          activated_by?: string | null
+          created_at?: string
+          id?: string
+          lifetime_activated_at?: string | null
+          payment_status?: string | null
+          plan?: Database["public"]["Enums"]["subscription_plan"]
+          trial_end_date?: string | null
+          trial_start_date?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          activated_by?: string | null
+          created_at?: string
+          id?: string
+          lifetime_activated_at?: string | null
+          payment_status?: string | null
+          plan?: Database["public"]["Enums"]["subscription_plan"]
+          trial_end_date?: string | null
+          trial_start_date?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       transcripts: {
         Row: {
           content: string
@@ -94,15 +196,44 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_active_subscription: { Args: { _user_id: string }; Returns: boolean }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
+      subscription_plan: "trial" | "lifetime"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -229,6 +360,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+      subscription_plan: ["trial", "lifetime"],
+    },
   },
 } as const
