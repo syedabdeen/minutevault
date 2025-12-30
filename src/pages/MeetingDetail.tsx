@@ -23,7 +23,7 @@ import {
   Sparkles,
   Mail,
   MessageCircle,
-  Link2,
+  
   CheckSquare,
   Square,
 } from "lucide-react";
@@ -309,14 +309,6 @@ export default function MeetingDetail() {
     toast.success("WhatsApp opened");
   }, [meeting]);
 
-  const handleCopyLink = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast.success("Link copied to clipboard!");
-    } catch {
-      toast.error("Failed to copy link");
-    }
-  }, []);
 
   const handleSave = () => {
     setIsEditing(false);
@@ -440,10 +432,6 @@ export default function MeetingDetail() {
                 <DropdownMenuItem onClick={handleShareWhatsApp}>
                   <MessageCircle size={16} className="mr-2" />
                   Share via WhatsApp
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleCopyLink}>
-                  <Link2 size={16} className="mr-2" />
-                  Copy Link
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
