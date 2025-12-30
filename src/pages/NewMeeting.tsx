@@ -8,20 +8,35 @@ import { Label } from "@/components/ui/label";
 import {
   Mic,
   Square,
-  Clock,
   Users,
   AlertCircle,
   CheckCircle,
+  Loader2,
+  MicOff,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAudioRecording } from "@/hooks/useAudioRecording";
 
 export default function NewMeeting() {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [speakersDetected, setSpeakersDetected] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [waveformHeights, setWaveformHeights] = useState<number[]>(
+    Array(20).fill(20)
+  );
+
+  const {
+    isConnecting,
+    isConnected,
+    transcripts,
+    partialText,
+    speakersDetected,
+    error,
+    startRecording,
+    stopRecording,
+    getFullTranscript,
+  } = useAudioRecording();
 
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -32,61 +47,102 @@ export default function NewMeeting() {
       .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleStart = () => {
-    if (!title.trim()) {
-      toast.error("Please enter a meeting title");
-      return;
-    }
-    setIsRecording(true);
-    toast.success("Recording started", {
-      description: "Speak clearly for best transcription results",
-    });
-
-    // Start timer
-    timerRef.current = setInterval(() => {
-      setRecordingTime((prev) => prev + 1);
-    }, 1000);
-
-    // Simulate speaker detection
-    setTimeout(() => setSpeakersDetected(1), 2000);
-    setTimeout(() => setSpeakersDetected(2), 5000);
-    setTimeout(() => setSpeakersDetected(3), 10000);
-  };
-
-  const handleStop = () => {
-    setIsRecording(false);
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-
-    toast.success("Recording stopped", {
-      description: "Processing audio and generating transcript...",
-    });
-
-    // Simulate processing and navigate to meeting detail
-    setTimeout(() => {
-      navigate("/meeting/new-recording");
-    }, 1500);
-  };
-
+  // Waveform animation
   useEffect(() => {
+    if (isConnected) {
+      const interval = setInterval(() => {
+        setWaveformHeights(
+          Array(20)
+            .fill(0)
+            .map(() => Math.random() * 100)
+        );
+      }, 100);
+      return () => clearInterval(interval);
+    } else {
+      setWaveformHeights(Array(20).fill(20));
+    }
+  }, [isConnected]);
+
+  // Timer
+  useEffect(() => {
+    if (isConnected) {
+      timerRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    }
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     };
-  }, []);
+  }, [isConnected]);
 
-  // Waveform animation bars
+  // Show error toast
+  useEffect(() => {
+    if (error) {
+      toast.error("Recording Error", { description: error });
+    }
+  }, [error]);
+
+  const handleStart = async () => {
+    if (!title.trim()) {
+      toast.error("Please enter a meeting title");
+      return;
+    }
+
+    toast.info("Requesting microphone access...", {
+      description: "Please allow microphone access when prompted",
+    });
+
+    const success = await startRecording();
+    if (success) {
+      toast.success("Recording started", {
+        description: "Speak clearly for best transcription results",
+      });
+    }
+  };
+
+  const handleStop = async () => {
+    await stopRecording();
+
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+
+    toast.success("Recording stopped", {
+      description: "Processing transcript...",
+    });
+
+    // Store transcript in session storage for the detail page
+    const transcriptData = {
+      title,
+      date: new Date().toISOString(),
+      duration: recordingTime,
+      transcripts,
+      fullTranscript: getFullTranscript(),
+      speakersDetected,
+    };
+    sessionStorage.setItem("latestMeeting", JSON.stringify(transcriptData));
+
+    // Navigate to meeting detail
+    setTimeout(() => {
+      navigate("/meeting/new-recording");
+    }, 1000);
+  };
+
+  // Waveform component
   const WaveformBars = () => (
     <div className="flex items-end gap-1 h-16">
-      {Array.from({ length: 20 }).map((_, i) => (
+      {waveformHeights.map((height, i) => (
         <div
           key={i}
-          className="w-1.5 bg-gradient-to-t from-primary to-accent rounded-full waveform-bar"
+          className="w-1.5 bg-gradient-to-t from-accent to-accent/60 rounded-full transition-all duration-100"
           style={{
-            height: isRecording ? `${Math.random() * 100}%` : "20%",
-            animationDelay: `${i * 0.05}s`,
+            height: `${Math.max(height, 8)}%`,
             minHeight: "8px",
           }}
         />
@@ -106,7 +162,7 @@ export default function NewMeeting() {
         </div>
 
         {/* Meeting Setup */}
-        {!isRecording && (
+        {!isConnected && !isConnecting && (
           <Card className="mb-8 fade-in">
             <CardHeader>
               <CardTitle>Meeting Details</CardTitle>
@@ -145,12 +201,25 @@ export default function NewMeeting() {
         )}
 
         {/* Recording Interface */}
-        <Card className={`transition-all duration-500 ${isRecording ? "border-destructive/50 shadow-[0_0_40px_hsl(0_72%_51%/0.2)]" : ""}`}>
+        <Card
+          className={`transition-all duration-500 ${
+            isConnected
+              ? "border-destructive/50 shadow-[0_0_40px_hsl(0_72%_51%/0.2)]"
+              : ""
+          }`}
+        >
           <CardContent className="p-8">
             <div className="flex flex-col items-center">
               {/* Recording Status */}
               <div className="mb-8 text-center">
-                {isRecording ? (
+                {isConnecting ? (
+                  <div className="flex items-center gap-2 text-accent">
+                    <Loader2 size={20} className="animate-spin" />
+                    <span className="text-sm font-medium">
+                      Connecting to transcription service...
+                    </span>
+                  </div>
+                ) : isConnected ? (
                   <>
                     <div className="flex items-center gap-2 text-destructive mb-2">
                       <div className="w-3 h-3 rounded-full bg-destructive recording-pulse" />
@@ -177,26 +246,58 @@ export default function NewMeeting() {
                 <WaveformBars />
               </div>
 
+              {/* Live Transcript Preview */}
+              {isConnected && (transcripts.length > 0 || partialText) && (
+                <div className="w-full max-w-2xl mb-8 p-4 rounded-lg bg-secondary/30 border border-border">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Mic size={16} className="text-accent" />
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Live Transcript
+                    </span>
+                  </div>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {transcripts.slice(-5).map((t) => (
+                      <div key={t.id} className="text-sm">
+                        <span className="text-accent font-medium">
+                          {t.speaker}:
+                        </span>{" "}
+                        <span className="text-foreground">{t.text}</span>
+                      </div>
+                    ))}
+                    {partialText && (
+                      <div className="text-sm text-muted-foreground italic">
+                        {partialText}...
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Stats */}
-              {isRecording && (
+              {isConnected && (
                 <div className="flex items-center gap-8 mb-8 fade-in">
                   <div className="flex items-center gap-2 text-sm">
-                    <Users size={18} className="text-primary" />
+                    <Users size={18} className="text-accent" />
                     <span>
-                      {speakersDetected} speaker{speakersDetected !== 1 ? "s" : ""}{" "}
-                      detected
+                      {speakersDetected} speaker
+                      {speakersDetected !== 1 ? "s" : ""} detected
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-success">
                     <CheckCircle size={18} />
-                    <span>Audio quality: Excellent</span>
+                    <span>Transcribing live</span>
                   </div>
                 </div>
               )}
 
               {/* Controls */}
               <div className="flex items-center gap-4">
-                {!isRecording ? (
+                {isConnecting ? (
+                  <Button variant="outline" size="xl" disabled className="min-w-[200px]">
+                    <Loader2 size={24} className="animate-spin" />
+                    Connecting...
+                  </Button>
+                ) : !isConnected ? (
                   <Button
                     variant="gradient"
                     size="xl"
@@ -223,11 +324,11 @@ export default function NewMeeting() {
         </Card>
 
         {/* Tips */}
-        {!isRecording && (
-          <Card className="mt-8 bg-primary/5 border-primary/20">
+        {!isConnected && !isConnecting && (
+          <Card className="mt-8 bg-accent/5 border-accent/20">
             <CardContent className="p-6">
               <div className="flex gap-4">
-                <AlertCircle size={24} className="text-primary flex-shrink-0" />
+                <AlertCircle size={24} className="text-accent flex-shrink-0" />
                 <div>
                   <h3 className="font-semibold mb-2">Tips for Best Results</h3>
                   <ul className="text-sm text-muted-foreground space-y-1">
@@ -237,7 +338,28 @@ export default function NewMeeting() {
                       • Speakers can introduce themselves for better identification
                     </li>
                     <li>• Position the microphone centrally for group meetings</li>
+                    <li>• Grant microphone permission when prompted</li>
                   </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Microphone Permission Error */}
+        {error && (
+          <Card className="mt-8 bg-destructive/5 border-destructive/20">
+            <CardContent className="p-6">
+              <div className="flex gap-4">
+                <MicOff size={24} className="text-destructive flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold mb-2 text-destructive">
+                    Microphone Access Required
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {error}. Please check your browser settings and allow
+                    microphone access for this site.
+                  </p>
                 </div>
               </div>
             </CardContent>
