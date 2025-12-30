@@ -3,8 +3,13 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
+import Pricing from "./pages/Pricing";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
+import PendingActivation from "./pages/PendingActivation";
+import AdminLogin from "./pages/admin/AdminLogin";
+import AdminDashboard from "./pages/admin/AdminDashboard";
 import Dashboard from "./pages/Dashboard";
 import NewMeeting from "./pages/NewMeeting";
 import MeetingDetail from "./pages/MeetingDetail";
@@ -22,15 +27,26 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
+          {/* Public routes */}
+          <Route path="/" element={<Pricing />} />
+          <Route path="/pricing" element={<Pricing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/pending-activation" element={<PendingActivation />} />
+          
+          {/* Admin routes */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          
+          {/* Protected app routes */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/meeting/new" element={<NewMeeting />} />
           <Route path="/meeting/:id" element={<MeetingDetail />} />
           <Route path="/meetings" element={<AllMeetings />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/install" element={<Install />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
