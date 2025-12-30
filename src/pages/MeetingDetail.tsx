@@ -380,6 +380,18 @@ export default function MeetingDetail() {
           </p>
         </div>
 
+        {/* Back Navigation */}
+        <div className="mb-6">
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/meetings")}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft size={18} />
+            Back to All Meetings
+          </Button>
+        </div>
+
         {/* Meeting Header */}
         <div className="flex items-start justify-between mb-8">
           <div>
