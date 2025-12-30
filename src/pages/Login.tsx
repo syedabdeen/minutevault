@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowRight, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
@@ -22,6 +23,7 @@ export default function Login() {
     password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -160,7 +162,17 @@ export default function Login() {
                 </div>
               </div>
 
-              <div className="text-right">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="rememberMe"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                  />
+                  <Label htmlFor="rememberMe" className="text-sm cursor-pointer">
+                    Remember me
+                  </Label>
+                </div>
                 <Link
                   to="/forgot-password"
                   className="text-sm text-accent hover:underline"
