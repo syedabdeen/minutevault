@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Logo } from "./Logo";
 import { Button } from "./ui/button";
@@ -10,6 +10,7 @@ import {
   FileText,
   ChevronRight,
   Home,
+  User,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -23,15 +24,34 @@ import {
   AlertDialogTrigger,
 } from "./ui/alert-dialog";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback } from "./ui/avatar";
 
 interface LayoutProps {
   children: ReactNode;
+}
+
+interface UserData {
+  fullName: string;
+  email: string;
+  mobile: string;
 }
 
 export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [user, setUser] = useState<UserData | null>(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("mom_user");
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch {
+        setUser(null);
+      }
+    }
+  }, []);
 
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -80,6 +100,32 @@ export function Layout({ children }: LayoutProps) {
             </button>
           ))}
         </nav>
+
+        {/* User Profile Section */}
+        {user && (
+          <div className="p-4 border-t border-sidebar-border">
+            <div className="flex items-center gap-3 px-2 py-2">
+              <Avatar className="h-10 w-10 border-2 border-primary/20">
+                <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                  {user.fullName
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-sidebar-foreground truncate">
+                  {user.fullName}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {user.email}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="p-4 border-t border-sidebar-border space-y-1">
           <Button
