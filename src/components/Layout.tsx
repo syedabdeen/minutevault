@@ -10,7 +10,8 @@ import {
   FileText,
   ChevronRight,
   Home,
-  User,
+  Menu,
+  X,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -25,6 +26,7 @@ import {
 } from "./ui/alert-dialog";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "./ui/avatar";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface LayoutProps {
   children: ReactNode;
@@ -39,7 +41,9 @@ interface UserData {
 export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useIsMobile();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState<UserData | null>(null);
 
   useEffect(() => {
@@ -52,6 +56,13 @@ export function Layout({ children }: LayoutProps) {
       }
     }
   }, []);
+
+  // Close sidebar when route changes on mobile
+  useEffect(() => {
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  }, [location.pathname, isMobile]);
 
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -68,19 +79,59 @@ export function Layout({ children }: LayoutProps) {
     navigate("/");
   };
 
+  const handleNavigation = (path: string) => {
+    navigate(path);
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-border bg-sidebar flex flex-col">
-        <div className="p-6 border-b border-sidebar-border">
+      {/* Mobile Header */}
+      {isMobile && (
+        <header className="fixed top-0 left-0 right-0 h-14 bg-sidebar border-b border-sidebar-border flex items-center justify-between px-4 z-50">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="text-sidebar-foreground"
+          >
+            {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
+          </Button>
           <Logo />
-        </div>
+          <div className="w-10" /> {/* Spacer for centering logo */}
+        </header>
+      )}
 
-        <nav className="flex-1 p-4 space-y-1">
+      {/* Mobile Overlay */}
+      {isMobile && sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`
+          ${isMobile ? "fixed left-0 top-14 bottom-0 z-50" : "relative"}
+          w-64 border-r border-border bg-sidebar flex flex-col
+          transition-transform duration-300 ease-in-out
+          ${isMobile && !sidebarOpen ? "-translate-x-full" : "translate-x-0"}
+        `}
+      >
+        {!isMobile && (
+          <div className="p-6 border-b border-sidebar-border">
+            <Logo />
+          </div>
+        )}
+
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => (
             <button
               key={item.path}
-              onClick={() => navigate(item.path)}
+              onClick={() => handleNavigation(item.path)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 group ${
                 isActive(item.path)
                   ? "bg-sidebar-accent text-sidebar-accent-foreground"
@@ -131,7 +182,7 @@ export function Layout({ children }: LayoutProps) {
           <Button
             variant="ghost"
             className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
-            onClick={() => navigate("/")}
+            onClick={() => handleNavigation("/")}
           >
             <Home size={18} />
             <span>Home</span>
@@ -166,7 +217,9 @@ export function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main className={`flex-1 overflow-auto ${isMobile ? "pt-14" : ""}`}>
+        {children}
+      </main>
     </div>
   );
 }
