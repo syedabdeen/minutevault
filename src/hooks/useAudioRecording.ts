@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useScribe, CommitStrategy } from "@elevenlabs/react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -16,36 +16,19 @@ export function useAudioRecording() {
   const [error, setError] = useState<string | null>(null);
   
   const startTimeRef = useRef<number>(0);
-  const speakerCountRef = useRef<Set<string>>(new Set());
-  const transcriptIdCounter = useRef(0);
+  const processedIdsRef = useRef<Set<string>>(new Set());
 
   const scribe = useScribe({
     modelId: "scribe_v2_realtime",
     commitStrategy: CommitStrategy.VAD,
+    onSessionStarted: () => {
+      console.log("Session started");
+    },
     onPartialTranscript: (data) => {
       console.log("Partial transcript:", data.text);
     },
     onCommittedTranscript: (data) => {
-      console.log("Committed transcript:", data.text);
-      if (data.text) {
-        const timestamp = Date.now() - startTimeRef.current;
-        const speakerNum = speakerCountRef.current.size + 1;
-        const speakerLabel = `Speaker ${speakerNum}`;
-        
-        speakerCountRef.current.add(speakerLabel);
-        setSpeakersDetected(speakerCountRef.current.size);
-
-        transcriptIdCounter.current += 1;
-        setTranscripts((prev) => [
-          ...prev,
-          {
-            id: `transcript-${transcriptIdCounter.current}`,
-            text: data.text,
-            timestamp,
-            speaker: speakerLabel,
-          },
-        ]);
-      }
+      console.log("Committed transcript received:", data.text);
     },
     onError: (err) => {
       console.error("Scribe error:", err);
@@ -57,13 +40,42 @@ export function useAudioRecording() {
     },
   });
 
+  // Sync committed transcripts from SDK to our state
+  useEffect(() => {
+    if (scribe.committedTranscripts && scribe.committedTranscripts.length > 0) {
+      const newTranscripts: TranscriptSegment[] = [];
+      const speakers = new Set<string>();
+      
+      scribe.committedTranscripts.forEach((t, index) => {
+        if (!processedIdsRef.current.has(t.id)) {
+          processedIdsRef.current.add(t.id);
+          const speakerLabel = `Speaker ${(index % 4) + 1}`;
+          speakers.add(speakerLabel);
+          
+          newTranscripts.push({
+            id: t.id,
+            text: t.text,
+            timestamp: t.timestamp || Date.now() - startTimeRef.current,
+            speaker: speakerLabel,
+          });
+        }
+      });
+
+      if (newTranscripts.length > 0) {
+        setTranscripts(prev => [...prev, ...newTranscripts]);
+        setSpeakersDetected(prev => Math.max(prev, speakers.size));
+      }
+    }
+  }, [scribe.committedTranscripts]);
+
   const startRecording = useCallback(async () => {
     setError(null);
     setIsConnecting(true);
     startTimeRef.current = Date.now();
-    speakerCountRef.current = new Set();
+    processedIdsRef.current = new Set();
     setTranscripts([]);
     setSpeakersDetected(0);
+    scribe.clearTranscripts();
 
     try {
       // Get token from edge function
