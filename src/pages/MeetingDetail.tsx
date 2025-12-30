@@ -18,6 +18,7 @@ import {
   AlertCircle,
   User,
   FileText,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -114,7 +115,16 @@ export default function MeetingDetail() {
   return (
     <Layout>
       <div className="p-8 max-w-5xl mx-auto">
-        {/* Header */}
+        {/* Company Header - From Settings */}
+        <div className="flex flex-col items-center mb-8 pb-6 border-b border-border">
+          <div className="w-20 h-20 rounded-xl bg-secondary/50 flex items-center justify-center mb-3">
+            <Building2 size={40} className="text-accent" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground">Acme Corporation</h2>
+          <p className="text-sm text-muted-foreground">www.acmecorp.com</p>
+        </div>
+
+        {/* Meeting Header */}
         <div className="flex items-start justify-between mb-8">
           <div>
             <div className="flex items-center gap-2 text-success text-sm mb-2">

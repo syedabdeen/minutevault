@@ -66,34 +66,29 @@ const Index = () => {
     <div className="min-h-screen bg-background overflow-hidden">
       {/* Background Effects */}
       <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-accent/20 rounded-full blur-3xl" />
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-accent/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
         <div
           className="absolute inset-0 opacity-5"
           style={{
             backgroundImage: `
-              linear-gradient(hsl(var(--primary)/0.1) 1px, transparent 1px),
-              linear-gradient(90deg, hsl(var(--primary)/0.1) 1px, transparent 1px)
+              linear-gradient(hsl(var(--accent)/0.1) 1px, transparent 1px),
+              linear-gradient(90deg, hsl(var(--accent)/0.1) 1px, transparent 1px)
             `,
             backgroundSize: "60px 60px",
           }}
         />
       </div>
 
-      {/* Navigation */}
-      <nav className="relative z-10 px-8 py-6 flex items-center justify-between max-w-7xl mx-auto">
-        <Logo size="lg" />
-        <Button variant="gradient" onClick={() => navigate("/auth")}>
-          Get Started
-          <ArrowRight size={18} />
-        </Button>
-      </nav>
-
-      {/* Hero Section */}
-      <section className="relative z-10 px-8 pt-16 pb-24 max-w-7xl mx-auto">
-        <div className="text-center max-w-4xl mx-auto fade-in">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-sm mb-8">
-            <Zap size={16} className="text-primary" />
+      {/* Hero Section with Centered Logo */}
+      <section className="relative z-10 flex flex-col items-center justify-center min-h-[60vh] px-8 pt-16">
+        <div className="fade-in mb-12">
+          <Logo size="lg" />
+        </div>
+        
+        <div className="text-center max-w-4xl mx-auto">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20 text-sm mb-8">
+            <Zap size={16} className="text-accent" />
             <span>AI-Powered Meeting Documentation</span>
           </div>
 
@@ -137,6 +132,8 @@ const Index = () => {
       </section>
 
       {/* Features Grid */}
+
+      {/* Features Grid */}
       <section className="relative z-10 px-8 py-24 max-w-7xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
@@ -175,30 +172,30 @@ const Index = () => {
             Ready to Revolutionize Your Meetings?
           </h2>
           <p className="text-lg text-muted-foreground mb-8">
-            Join thousands of enterprise teams using MoM AI to save time and
-            improve meeting documentation.
-          </p>
-          <Button
-            variant="gradient"
-            size="xl"
-            onClick={() => navigate("/auth")}
-          >
-            Get Started for Free
-            <ArrowRight size={20} />
-          </Button>
-        </div>
-      </section>
+          Join thousands of enterprise teams using MinuteVault to save time and
+          improve meeting documentation.
+        </p>
+        <Button
+          variant="gradient"
+          size="xl"
+          onClick={() => navigate("/auth")}
+        >
+          Get Started for Free
+          <ArrowRight size={20} />
+        </Button>
+      </div>
+    </section>
 
-      {/* Footer */}
-      <footer className="relative z-10 px-8 py-8 border-t border-border">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Logo size="sm" />
-          <p className="text-sm text-muted-foreground">
-            © 2024 MoM AI. All rights reserved.
-          </p>
-        </div>
-      </footer>
-    </div>
+    {/* Footer */}
+    <footer className="relative z-10 px-8 py-8 border-t border-border">
+      <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <Logo size="sm" />
+        <p className="text-sm text-muted-foreground">
+          © 2024 MinuteVault. All rights reserved.
+        </p>
+      </div>
+    </footer>
+  </div>
   );
 };
 

@@ -97,7 +97,7 @@ export default function Settings() {
                     Upload Logo
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    PNG or JPG. Recommended size: 200x200px
+                    PNG or JPG. This logo will appear centered at the top of MoM documents.
                   </p>
                 </div>
               </div>
