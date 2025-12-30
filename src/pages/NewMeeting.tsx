@@ -20,12 +20,14 @@ import { supabase } from "@/integrations/supabase/client";
 
 export default function NewMeeting() {
   const navigate = useNavigate();
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState("New Meeting");
   const [recordingTime, setRecordingTime] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [waveformHeights, setWaveformHeights] = useState<number[]>(
     Array(20).fill(20)
   );
+  const [micPermission, setMicPermission] = useState<"prompt" | "granted" | "denied">("prompt");
+  const autoStartAttempted = useRef(false);
 
   const {
     isConnecting,
@@ -38,6 +40,42 @@ export default function NewMeeting() {
     stopRecording,
     getFullTranscript,
   } = useAudioRecording();
+
+  // Check and request microphone permission on mount
+  useEffect(() => {
+    const checkAndRequestMic = async () => {
+      try {
+        // Check current permission status
+        const permissionStatus = await navigator.permissions.query({ name: "microphone" as PermissionName });
+        setMicPermission(permissionStatus.state as "prompt" | "granted" | "denied");
+        
+        permissionStatus.onchange = () => {
+          setMicPermission(permissionStatus.state as "prompt" | "granted" | "denied");
+        };
+
+        // If permission is already granted or prompt, try to auto-start
+        if (permissionStatus.state === "granted" && !autoStartAttempted.current) {
+          autoStartAttempted.current = true;
+          // Auto-start recording with default title
+          const success = await startRecording();
+          if (success) {
+            toast.success("Recording started automatically", {
+              description: "Microphone is active - speak to transcribe",
+            });
+          }
+        } else if (permissionStatus.state === "prompt") {
+          // Request permission proactively
+          toast.info("Microphone access needed", {
+            description: "Click 'Start Recording' to enable microphone",
+          });
+        }
+      } catch (err) {
+        console.log("Permission API not supported, will request on start");
+      }
+    };
+
+    checkAndRequestMic();
+  }, [startRecording]);
 
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -90,12 +128,7 @@ export default function NewMeeting() {
   }, [error]);
 
   const handleStart = async () => {
-    if (!title.trim()) {
-      toast.error("Please enter a meeting title");
-      return;
-    }
-
-    toast.info("Requesting microphone access...", {
+    toast.info("Starting recording...", {
       description: "Please allow microphone access when prompted",
     });
 
