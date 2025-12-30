@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 export default function NewMeeting() {
   const navigate = useNavigate();
   const [title, setTitle] = useState("New Meeting");
+  const [participantNames, setParticipantNames] = useState("");
   const [recordingTime, setRecordingTime] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [waveformHeights, setWaveformHeights] = useState<number[]>(
@@ -132,6 +133,7 @@ export default function NewMeeting() {
           duration: durationStr.trim(),
           speakers: speakersDetected,
           status: "completed",
+          participant_names: participantNames.trim() || null,
         })
         .select()
         .single();
@@ -194,6 +196,25 @@ export default function NewMeeting() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="participants">
+                  Participant Names{" "}
+                  <span className="text-muted-foreground font-normal">
+                    (optional, comma-separated)
+                  </span>
+                </Label>
+                <Input
+                  id="participants"
+                  placeholder="e.g., John Doe, Jane Smith, Mike Johnson"
+                  value={participantNames}
+                  onChange={(e) => setParticipantNames(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  If left empty, speakers will be labeled as Speaker 1, Speaker
+                  2, etc.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

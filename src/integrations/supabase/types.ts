@@ -16,34 +16,43 @@ export type Database = {
     Tables: {
       meetings: {
         Row: {
+          action_items: Json | null
           created_at: string
           date: string
           duration: string | null
           id: string
+          participant_names: string | null
           speakers: number | null
           status: string
+          summary: string | null
           time: string
           title: string
           updated_at: string
         }
         Insert: {
+          action_items?: Json | null
           created_at?: string
           date?: string
           duration?: string | null
           id?: string
+          participant_names?: string | null
           speakers?: number | null
           status?: string
+          summary?: string | null
           time?: string
           title: string
           updated_at?: string
         }
         Update: {
+          action_items?: Json | null
           created_at?: string
           date?: string
           duration?: string | null
           id?: string
+          participant_names?: string | null
           speakers?: number | null
           status?: string
+          summary?: string | null
           time?: string
           title?: string
           updated_at?: string
