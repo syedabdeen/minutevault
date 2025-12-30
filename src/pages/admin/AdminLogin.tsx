@@ -19,12 +19,18 @@ const loginSchema = z.object({
 
 export default function AdminLogin() {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
+  const [formData, setFormData] = useState(() => {
+    const saved = localStorage.getItem("admin_remembered_credentials");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return { email: parsed.email || "", password: parsed.password || "" };
+    }
+    return { email: "", password: "" };
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => {
+    return !!localStorage.getItem("admin_remembered_credentials");
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -66,6 +72,16 @@ export default function AdminLogin() {
           toast.error("Access denied. Admin privileges required.");
           await supabase.auth.signOut();
           return;
+        }
+
+        // Save or clear remembered credentials
+        if (rememberMe) {
+          localStorage.setItem("admin_remembered_credentials", JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+          }));
+        } else {
+          localStorage.removeItem("admin_remembered_credentials");
         }
 
         toast.success("Welcome, Admin!");
