@@ -18,12 +18,18 @@ const loginSchema = z.object({
 
 export default function Login() {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
+  const [formData, setFormData] = useState(() => {
+    const saved = localStorage.getItem("user_remembered_credentials");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return { email: parsed.email || "", password: parsed.password || "" };
+    }
+    return { email: "", password: "" };
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => {
+    return !!localStorage.getItem("user_remembered_credentials");
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -85,6 +91,16 @@ export default function Login() {
             email: profile.email,
             mobile: profile.mobile,
           }));
+        }
+
+        // Save or clear remembered credentials
+        if (rememberMe) {
+          localStorage.setItem("user_remembered_credentials", JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+          }));
+        } else {
+          localStorage.removeItem("user_remembered_credentials");
         }
 
         toast.success("Welcome back!");
