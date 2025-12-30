@@ -103,7 +103,7 @@ export default function NewMeeting() {
   };
 
   const handleStop = async () => {
-    await stopRecording();
+    const finalTranscripts = await stopRecording();
 
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -139,12 +139,14 @@ export default function NewMeeting() {
       if (meetingError) throw meetingError;
 
       // Save transcripts to database
-      if (transcripts.length > 0) {
-        const transcriptInserts = transcripts.map((t) => ({
+      if (finalTranscripts.length > 0) {
+        const recordingStartedMs = Date.now() - recordingTime * 1000;
+
+        const transcriptInserts = finalTranscripts.map((t) => ({
           meeting_id: meeting.id,
           speaker: t.speaker,
           content: t.text,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date(recordingStartedMs + t.timestamp).toISOString(),
         }));
 
         const { error: transcriptError } = await supabase

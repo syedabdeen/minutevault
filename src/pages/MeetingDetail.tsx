@@ -116,6 +116,21 @@ export default function MeetingDetail() {
     }
   };
 
+  const formatTranscriptOffset = (baseIso: string, iso: string) => {
+    try {
+      const base = new Date(baseIso).getTime();
+      const current = new Date(iso).getTime();
+      const delta = Math.max(0, current - base);
+      const mins = Math.floor(delta / 60000);
+      const secs = Math.floor((delta % 60000) / 1000);
+      return `${mins.toString().padStart(2, "0")}:${secs
+        .toString()
+        .padStart(2, "0")}`;
+    } catch {
+      return "";
+    }
+  };
+
   const getUniqueAttendees = () => {
     const speakers = transcripts.map((t) => t.speaker);
     return [...new Set(speakers)];
@@ -265,39 +280,52 @@ export default function MeetingDetail() {
           <CardContent>
             {transcripts.length > 0 ? (
               <div className="space-y-4">
-                {transcripts.map((entry, index) => (
-                  <div
-                    key={entry.id || index}
-                    className="flex gap-4 p-4 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-primary">
-                          {entry.speaker}
-                        </span>
-                        {entry.speaker.includes("Speaker") && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-warning/20 text-warning">
-                            Unidentified
+                {transcripts.map((entry, index) => {
+                  const baseTs = transcripts[0]?.timestamp;
+
+                  return (
+                    <div
+                      key={entry.id || index}
+                      className="flex gap-4 p-4 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                    >
+                      <div className="w-16 pt-1 text-xs font-mono tabular-nums text-muted-foreground">
+                        {baseTs ? formatTranscriptOffset(baseTs, entry.timestamp) : ""}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-primary">
+                            {entry.speaker}
                           </span>
+                          {entry.speaker.includes("Speaker") && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-warning/20 text-warning">
+                              Unidentified
+                            </span>
+                          )}
+                        </div>
+                        {isEditing ? (
+                          <Textarea
+                            value={entry.content}
+                            className="min-h-[60px]"
+                            onChange={() => {}}
+                          />
+                        ) : (
+                          <p className="text-foreground/90">{entry.content}</p>
                         )}
                       </div>
-                      {isEditing ? (
-                        <Textarea
-                          value={entry.content}
-                          className="min-h-[60px]"
-                          onChange={() => {}}
-                        />
-                      ) : (
-                        <p className="text-foreground/90">{entry.content}</p>
-                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
-              <p className="text-muted-foreground text-center py-8">
-                No transcript available for this meeting
-              </p>
+              <div className="text-center py-10">
+                <p className="text-muted-foreground">
+                  No transcript was saved for this meeting.
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  If you just recorded, refresh in a few seconds. Otherwise try a
+                  longer recording and speak clearly.
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>

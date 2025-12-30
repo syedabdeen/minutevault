@@ -1,11 +1,11 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useScribe, CommitStrategy } from "@elevenlabs/react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface TranscriptSegment {
   id: string;
   text: string;
-  timestamp: number;
+  timestamp: number; // milliseconds since recording start
   speaker: string;
 }
 
@@ -14,9 +14,31 @@ export function useAudioRecording() {
   const [transcripts, setTranscripts] = useState<TranscriptSegment[]>([]);
   const [speakersDetected, setSpeakersDetected] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  
+
   const startTimeRef = useRef<number>(0);
   const transcriptCounterRef = useRef(0);
+  const transcriptsRef = useRef<TranscriptSegment[]>([]);
+
+  const appendTranscript = useCallback((text: string) => {
+    transcriptCounterRef.current += 1;
+
+    const timestamp = Date.now() - startTimeRef.current;
+    const speakerLabel = `Speaker ${((transcriptCounterRef.current - 1) % 4) + 1}`;
+
+    const next: TranscriptSegment = {
+      id: `transcript-${transcriptCounterRef.current}-${Date.now()}`,
+      text,
+      timestamp,
+      speaker: speakerLabel,
+    };
+
+    const updated = [...transcriptsRef.current, next];
+    transcriptsRef.current = updated;
+    setTranscripts(updated);
+    setSpeakersDetected((prev) =>
+      Math.max(prev, ((transcriptCounterRef.current - 1) % 4) + 1)
+    );
+  }, []);
 
   const scribe = useScribe({
     modelId: "scribe_v2_realtime",
@@ -29,22 +51,8 @@ export function useAudioRecording() {
     },
     onCommittedTranscript: (data) => {
       console.log("Committed:", data.text);
-      if (data.text && data.text.trim()) {
-        transcriptCounterRef.current += 1;
-        const timestamp = Date.now() - startTimeRef.current;
-        const speakerLabel = `Speaker ${((transcriptCounterRef.current - 1) % 4) + 1}`;
-        
-        setTranscripts(prev => [
-          ...prev,
-          {
-            id: `transcript-${transcriptCounterRef.current}-${Date.now()}`,
-            text: data.text,
-            timestamp,
-            speaker: speakerLabel,
-          },
-        ]);
-        setSpeakersDetected(prev => Math.max(prev, ((transcriptCounterRef.current - 1) % 4) + 1));
-      }
+      const text = data.text?.trim();
+      if (text) appendTranscript(text);
     },
     onError: (err) => {
       console.error("Scribe error:", err);
@@ -59,14 +67,15 @@ export function useAudioRecording() {
   const startRecording = useCallback(async () => {
     setError(null);
     setIsConnecting(true);
+
     startTimeRef.current = Date.now();
     transcriptCounterRef.current = 0;
+    transcriptsRef.current = [];
     setTranscripts([]);
     setSpeakersDetected(0);
     scribe.clearTranscripts();
 
     try {
-      // Get token from edge function
       const { data, error: tokenError } = await supabase.functions.invoke(
         "elevenlabs-scribe-token"
       );
@@ -80,7 +89,6 @@ export function useAudioRecording() {
 
       console.log("Got scribe token, connecting...");
 
-      // Connect using the SDK
       await scribe.connect({
         token: data.token,
         microphone: {
@@ -94,7 +102,10 @@ export function useAudioRecording() {
       return true;
     } catch (err: unknown) {
       console.error("Error starting recording:", err);
-      const errorMessage = err instanceof Error ? err.message : "Failed to start recording. Please try again.";
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Failed to start recording. Please try again.";
       setError(errorMessage);
       setIsConnecting(false);
       return false;
@@ -103,14 +114,25 @@ export function useAudioRecording() {
 
   const stopRecording = useCallback(async () => {
     try {
-      // Commit any remaining transcript before disconnecting
-      scribe.commit();
-      // Small delay to allow final commit to process
-      await new Promise(resolve => setTimeout(resolve, 500));
-      scribe.disconnect();
+      // Flush any pending audio -> transcript before disconnecting.
+      const beforeLen = transcriptsRef.current.length;
+
+      await Promise.resolve(scribe.commit());
+
+      const waitStartedAt = Date.now();
+      while (
+        Date.now() - waitStartedAt < 1500 &&
+        transcriptsRef.current.length === beforeLen
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      await Promise.resolve(scribe.disconnect());
     } catch (err) {
       console.error("Error stopping recording:", err);
     }
+
+    return transcriptsRef.current;
   }, [scribe]);
 
   const getFullTranscript = useCallback(() => {
@@ -118,7 +140,9 @@ export function useAudioRecording() {
       .map((t) => {
         const mins = Math.floor(t.timestamp / 60000);
         const secs = Math.floor((t.timestamp % 60000) / 1000);
-        const timeStr = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+        const timeStr = `${mins.toString().padStart(2, "0")}:${secs
+          .toString()
+          .padStart(2, "0")}`;
         return `[${timeStr}] ${t.speaker}: ${t.text}`;
       })
       .join("\n");
@@ -136,3 +160,4 @@ export function useAudioRecording() {
     getFullTranscript,
   };
 }
+
