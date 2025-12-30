@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAudioRecording } from "@/hooks/useAudioRecording";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function NewMeeting() {
   const navigate = useNavigate();
@@ -114,24 +115,60 @@ export default function NewMeeting() {
     }
 
     toast.success("Recording stopped", {
-      description: "Processing transcript...",
+      description: "Saving meeting to database...",
     });
 
-    // Store transcript in session storage for the detail page
-    const transcriptData = {
-      title,
-      date: new Date().toISOString(),
-      duration: recordingTime,
-      transcripts,
-      fullTranscript: getFullTranscript(),
-      speakersDetected,
-    };
-    sessionStorage.setItem("latestMeeting", JSON.stringify(transcriptData));
+    try {
+      // Format duration
+      const hrs = Math.floor(recordingTime / 3600);
+      const mins = Math.floor((recordingTime % 3600) / 60);
+      let durationStr = "";
+      if (hrs > 0) durationStr += `${hrs}h `;
+      if (mins > 0) durationStr += `${mins}min`;
+      if (!durationStr) durationStr = "< 1 min";
 
-    // Navigate to meeting detail
-    setTimeout(() => {
-      navigate("/meeting/new-recording");
-    }, 1000);
+      // Save meeting to database
+      const { data: meeting, error: meetingError } = await supabase
+        .from("meetings")
+        .insert({
+          title,
+          date: new Date().toISOString().split("T")[0],
+          time: new Date().toTimeString().slice(0, 8),
+          duration: durationStr.trim(),
+          speakers: speakersDetected,
+          status: "completed",
+        })
+        .select()
+        .single();
+
+      if (meetingError) throw meetingError;
+
+      // Save transcripts to database
+      if (transcripts.length > 0) {
+        const transcriptInserts = transcripts.map((t) => ({
+          meeting_id: meeting.id,
+          speaker: t.speaker,
+          content: t.text,
+          timestamp: new Date().toISOString(),
+        }));
+
+        const { error: transcriptError } = await supabase
+          .from("transcripts")
+          .insert(transcriptInserts);
+
+        if (transcriptError) throw transcriptError;
+      }
+
+      toast.success("Meeting saved successfully!");
+
+      // Navigate to meeting detail
+      navigate(`/meeting/${meeting.id}`);
+    } catch (error) {
+      console.error("Error saving meeting:", error);
+      toast.error("Failed to save meeting", {
+        description: "Please try again",
+      });
+    }
   };
 
   return (
