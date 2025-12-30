@@ -110,14 +110,9 @@ export default function Pricing() {
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto">
         <Logo />
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => navigate("/login")}>
-            Sign In
-          </Button>
-          <Button variant="outline" onClick={() => navigate("/admin/login")}>
-            Admin
-          </Button>
-        </div>
+        <Button variant="ghost" onClick={() => navigate("/login")}>
+          Sign In
+        </Button>
       </header>
 
       {/* Hero Section */}
