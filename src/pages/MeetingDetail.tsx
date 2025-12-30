@@ -22,39 +22,98 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-// Mock transcript data
-const mockTranscript = [
-  {
-    time: "00:00:12",
-    speaker: "Ahmed Hassan",
-    text: "Good morning everyone. Let's begin the Q4 budget review meeting.",
-  },
-  {
-    time: "00:00:25",
-    speaker: "Speaker 2",
-    text: "Thanks Ahmed. I've prepared the financial summary for this quarter.",
-  },
-  {
-    time: "00:01:03",
-    speaker: "Ahmed Hassan",
-    text: "Perfect. Can you walk us through the key highlights?",
-  },
-  {
-    time: "00:01:15",
-    speaker: "Speaker 2",
-    text: "Certainly. Revenue is up 15% compared to Q3, exceeding our projections by 3%.",
-  },
-  {
-    time: "00:02:30",
-    speaker: "Speaker 3",
-    text: "That's excellent news. How does this affect our expansion budget?",
-  },
-  {
-    time: "00:02:45",
-    speaker: "Ahmed Hassan",
-    text: "We should allocate an additional 10% to the expansion fund based on these numbers.",
-  },
-];
+interface TranscriptEntry {
+  id: string;
+  timestamp: number;
+  speaker: string;
+  text: string;
+}
+
+interface MeetingData {
+  title: string;
+  date: string;
+  time: string;
+  location: string;
+  attendees: string[];
+  transcript: TranscriptEntry[];
+  fullTranscript: string;
+}
+
+// Load meeting data from session storage or use mock data
+const loadMeetingData = (id: string): MeetingData => {
+  if (id === "new-recording") {
+    const stored = sessionStorage.getItem("latestMeeting");
+    if (stored) {
+      const data = JSON.parse(stored);
+      return {
+        title: data.title,
+        date: new Date(data.date).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        }),
+        time: new Date(data.date).toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        location: "Online Meeting",
+        attendees: Array.from(
+          new Set(data.transcripts?.map((t: TranscriptEntry) => t.speaker) || ["Speaker 1"])
+        ) as string[],
+        transcript: data.transcripts || [],
+        fullTranscript: data.fullTranscript || "",
+      };
+    }
+  }
+
+  // Mock data fallback
+  return {
+    title: id === "new-recording" ? "Weekly Team Standup" : "Q4 Budget Review",
+    date: "December 28, 2024",
+    time: "10:00 AM - 10:45 AM",
+    location: "Online (Microsoft Teams)",
+    attendees: ["Ahmed Hassan", "Speaker 2", "Speaker 3", "Speaker 4"],
+    transcript: [
+      {
+        id: "1",
+        timestamp: 12000,
+        speaker: "Ahmed Hassan",
+        text: "Good morning everyone. Let's begin the Q4 budget review meeting.",
+      },
+      {
+        id: "2",
+        timestamp: 25000,
+        speaker: "Speaker 2",
+        text: "Thanks Ahmed. I've prepared the financial summary for this quarter.",
+      },
+      {
+        id: "3",
+        timestamp: 63000,
+        speaker: "Ahmed Hassan",
+        text: "Perfect. Can you walk us through the key highlights?",
+      },
+      {
+        id: "4",
+        timestamp: 75000,
+        speaker: "Speaker 2",
+        text: "Certainly. Revenue is up 15% compared to Q3, exceeding our projections by 3%.",
+      },
+      {
+        id: "5",
+        timestamp: 150000,
+        speaker: "Speaker 3",
+        text: "That's excellent news. How does this affect our expansion budget?",
+      },
+      {
+        id: "6",
+        timestamp: 165000,
+        speaker: "Ahmed Hassan",
+        text: "We should allocate an additional 10% to the expansion fund based on these numbers.",
+      },
+    ],
+    fullTranscript: "",
+  };
+};
 
 const mockActionItems = [
   {
@@ -84,15 +143,15 @@ export default function MeetingDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
-  const [transcript, setTranscript] = useState(mockTranscript);
   const [actionItems, setActionItems] = useState(mockActionItems);
 
-  const meetingData = {
-    title: id === "new-recording" ? "Weekly Team Standup" : "Q4 Budget Review",
-    date: "December 28, 2024",
-    time: "10:00 AM - 10:45 AM",
-    location: "Online (Microsoft Teams)",
-    attendees: ["Ahmed Hassan", "Speaker 2", "Speaker 3", "Speaker 4"],
+  const meetingData = loadMeetingData(id || "1");
+  const [transcript, setTranscript] = useState(meetingData.transcript);
+
+  const formatTimestamp = (ms: number) => {
+    const mins = Math.floor(ms / 60000);
+    const secs = Math.floor((ms % 60000) / 1000);
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}:00`;
   };
 
   const handleExportPDF = () => {
@@ -216,11 +275,11 @@ export default function MeetingDetail() {
             <div className="space-y-4">
               {transcript.map((entry, index) => (
                 <div
-                  key={index}
+                  key={entry.id || index}
                   className="flex gap-4 p-4 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
                 >
                   <div className="text-xs font-mono text-muted-foreground whitespace-nowrap pt-1">
-                    [{entry.time}]
+                    [{formatTimestamp(entry.timestamp)}]
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">

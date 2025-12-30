@@ -1,1 +1,4 @@
 project_id = "uggebsvaxlrgvijjgwre"
+
+[functions.elevenlabs-scribe-token]
+verify_jwt = false
