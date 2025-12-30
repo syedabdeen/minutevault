@@ -108,29 +108,42 @@ export function useAudioRecording() {
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          console.log("Received message:", message.type);
+          console.log("Received message:", message);
 
-          if (message.type === "transcript" && message.text) {
-            if (message.is_final) {
-              const timestamp = Date.now() - startTimeRef.current;
-              const speakerLabel = `Speaker ${(speakerCountRef.current.size % 4) + 1}`;
-              
-              speakerCountRef.current.add(speakerLabel);
-              setSpeakersDetected(speakerCountRef.current.size);
+          // Handle partial transcripts
+          if (message.type === "partial_transcript" && message.text) {
+            setPartialText(message.text);
+          }
 
-              setTranscripts((prev) => [
-                ...prev,
-                {
-                  id: crypto.randomUUID(),
-                  text: message.text,
-                  timestamp,
-                  speaker: speakerLabel,
-                },
-              ]);
-              setPartialText("");
-            } else {
-              setPartialText(message.text);
-            }
+          // Handle committed/final transcripts
+          if ((message.type === "committed_transcript" || message.type === "final_transcript") && message.text) {
+            const timestamp = Date.now() - startTimeRef.current;
+            const speakerLabel = message.speaker || `Speaker ${(speakerCountRef.current.size % 4) + 1}`;
+            
+            speakerCountRef.current.add(speakerLabel);
+            setSpeakersDetected(speakerCountRef.current.size);
+
+            setTranscripts((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                text: message.text,
+                timestamp,
+                speaker: speakerLabel,
+              },
+            ]);
+            setPartialText("");
+          }
+
+          // Handle session started
+          if (message.type === "session_started") {
+            console.log("ElevenLabs session started successfully");
+          }
+
+          // Handle errors from ElevenLabs
+          if (message.type === "error") {
+            console.error("ElevenLabs error:", message);
+            setError(message.message || "Transcription error occurred");
           }
         } catch (err) {
           console.error("Error parsing WebSocket message:", err);
