@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 
 interface LayoutProps {
   children: ReactNode;
@@ -42,6 +43,7 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
+  const { lightTap, mediumTap } = useHapticFeedback();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState<UserData | null>(null);
@@ -133,10 +135,18 @@ export function Layout({ children }: LayoutProps) {
   };
 
   const handleNavigation = (path: string) => {
+    if (isMobile) {
+      lightTap();
+    }
     navigate(path);
     if (isMobile) {
       setSidebarOpen(false);
     }
+  };
+
+  const handleSidebarToggle = () => {
+    mediumTap();
+    setSidebarOpen(!sidebarOpen);
   };
 
   return (
@@ -147,7 +157,7 @@ export function Layout({ children }: LayoutProps) {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
+            onClick={handleSidebarToggle}
             className="text-sidebar-foreground"
           >
             {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
