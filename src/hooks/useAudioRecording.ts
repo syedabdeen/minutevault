@@ -5,7 +5,7 @@ export interface TranscriptSegment {
   id: string;
   text: string;
   timestamp: number;
-  speaker?: string;
+  speaker: string;
 }
 
 export function useAudioRecording() {
@@ -19,7 +19,9 @@ export function useAudioRecording() {
   const startTimeRef = useRef<number>(0);
   const speakerCountRef = useRef<Set<string>>(new Set());
   const wsRef = useRef<WebSocket | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   const requestMicrophonePermission = useCallback(async (): Promise<MediaStream | null> => {
@@ -29,7 +31,6 @@ export function useAudioRecording() {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 16000,
         } 
       });
       return stream;
@@ -68,9 +69,9 @@ export function useAudioRecording() {
 
       console.log("Got scribe token, connecting to WebSocket...");
 
-      // Connect to ElevenLabs WebSocket
+      // Connect to ElevenLabs WebSocket with VAD enabled
       const ws = new WebSocket(
-        `wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=scribe_v2_realtime&token=${data.token}`
+        `wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=scribe_v2_realtime&token=${data.token}&audio_format=pcm_16000&commit_strategy=vad`
       );
       wsRef.current = ws;
 
@@ -83,57 +84,57 @@ export function useAudioRecording() {
         setIsConnected(true);
         setIsConnecting(false);
 
-        // Set up audio context for PCM conversion
+        // Set up audio context for PCM conversion at 16kHz
         const audioContext = new AudioContext({ sampleRate: 16000 });
+        audioContextRef.current = audioContext;
+        
         const source = audioContext.createMediaStreamSource(stream);
+        sourceRef.current = source;
+        
         const processor = audioContext.createScriptProcessor(4096, 1, 1);
+        processorRef.current = processor;
 
         processor.onaudioprocess = (e) => {
           if (ws.readyState === WebSocket.OPEN) {
             const inputData = e.inputBuffer.getChannelData(0);
-            // Convert float32 to int16 PCM
+            // Convert float32 to int16 PCM (little-endian)
             const pcmData = new Int16Array(inputData.length);
             for (let i = 0; i < inputData.length; i++) {
               const s = Math.max(-1, Math.min(1, inputData[i]));
               pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
             }
             // Convert to base64
-            const base64 = btoa(
-              String.fromCharCode(...new Uint8Array(pcmData.buffer))
-            );
-            // Send in correct format
-            ws.send(JSON.stringify({ audio_data: base64 }));
+            const uint8Array = new Uint8Array(pcmData.buffer);
+            let binary = '';
+            for (let i = 0; i < uint8Array.length; i++) {
+              binary += String.fromCharCode(uint8Array[i]);
+            }
+            const base64 = btoa(binary);
+            
+            // Send in correct ElevenLabs format
+            ws.send(JSON.stringify({ audio_base_64: base64 }));
           }
         };
 
         source.connect(processor);
         processor.connect(audioContext.destination);
-
-        // Store for cleanup
-        mediaRecorderRef.current = { 
-          stop: () => {
-            processor.disconnect();
-            source.disconnect();
-            audioContext.close();
-          },
-          state: "recording"
-        } as unknown as MediaRecorder;
       };
 
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          console.log("Received message:", message);
+          console.log("Received message:", message.message_type, message);
 
           // Handle partial transcripts
-          if (message.type === "partial_transcript" && message.text) {
+          if (message.message_type === "partial_transcript" && message.text) {
             setPartialText(message.text);
           }
 
           // Handle committed/final transcripts
-          if ((message.type === "committed_transcript" || message.type === "final_transcript") && message.text) {
+          if (message.message_type === "committed_transcript" && message.text) {
             const timestamp = Date.now() - startTimeRef.current;
-            const speakerLabel = message.speaker || `Speaker ${(speakerCountRef.current.size % 4) + 1}`;
+            const speakerNum = speakerCountRef.current.size + 1;
+            const speakerLabel = `Speaker ${speakerNum}`;
             
             speakerCountRef.current.add(speakerLabel);
             setSpeakersDetected(speakerCountRef.current.size);
@@ -151,14 +152,16 @@ export function useAudioRecording() {
           }
 
           // Handle session started
-          if (message.type === "session_started") {
+          if (message.message_type === "session_started") {
             console.log("ElevenLabs session started successfully");
           }
 
           // Handle errors from ElevenLabs
-          if (message.type === "error") {
+          if (message.message_type === "error" || message.message_type === "input_error") {
             console.error("ElevenLabs error:", message);
-            setError(message.message || "Transcription error occurred");
+            if (message.error) {
+              setError(message.error);
+            }
           }
         } catch (err) {
           console.error("Error parsing WebSocket message:", err);
@@ -173,9 +176,7 @@ export function useAudioRecording() {
       ws.onclose = (event) => {
         console.log("WebSocket closed:", event.code, event.reason);
         setIsConnected(false);
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-          mediaRecorderRef.current.stop();
-        }
+        cleanupAudio();
       };
 
       return true;
@@ -187,29 +188,39 @@ export function useAudioRecording() {
     }
   }, [requestMicrophonePermission]);
 
+  const cleanupAudio = useCallback(() => {
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
+    }
+    if (sourceRef.current) {
+      sourceRef.current.disconnect();
+      sourceRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  }, []);
+
   const stopRecording = useCallback(async () => {
     try {
-      // Stop media recorder
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-        mediaRecorderRef.current.stop();
-      }
-
       // Close WebSocket
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.close();
       }
 
-      // Stop all tracks
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-
+      cleanupAudio();
       setIsConnected(false);
       setPartialText("");
     } catch (err) {
       console.error("Error stopping recording:", err);
     }
-  }, []);
+  }, [cleanupAudio]);
 
   const getFullTranscript = useCallback(() => {
     return transcripts
@@ -228,14 +239,9 @@ export function useAudioRecording() {
       if (wsRef.current) {
         wsRef.current.close();
       }
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-        mediaRecorderRef.current.stop();
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
+      cleanupAudio();
     };
-  }, []);
+  }, [cleanupAudio]);
 
   return {
     isConnecting,
