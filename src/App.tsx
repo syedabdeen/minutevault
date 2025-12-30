@@ -10,6 +10,7 @@ import NewMeeting from "./pages/NewMeeting";
 import MeetingDetail from "./pages/MeetingDetail";
 import AllMeetings from "./pages/AllMeetings";
 import Settings from "./pages/Settings";
+import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/meeting/:id" element={<MeetingDetail />} />
           <Route path="/meetings" element={<AllMeetings />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/install" element={<Install />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
