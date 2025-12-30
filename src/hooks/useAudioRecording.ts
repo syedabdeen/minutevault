@@ -83,26 +83,41 @@ export function useAudioRecording() {
         setIsConnected(true);
         setIsConnecting(false);
 
-        // Start recording audio
-        const mediaRecorder = new MediaRecorder(stream, {
-          mimeType: "audio/webm;codecs=opus",
-        });
-        mediaRecorderRef.current = mediaRecorder;
+        // Set up audio context for PCM conversion
+        const audioContext = new AudioContext({ sampleRate: 16000 });
+        const source = audioContext.createMediaStreamSource(stream);
+        const processor = audioContext.createScriptProcessor(4096, 1, 1);
 
-        mediaRecorder.ondataavailable = async (event) => {
-          if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-            const arrayBuffer = await event.data.arrayBuffer();
+        processor.onaudioprocess = (e) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            const inputData = e.inputBuffer.getChannelData(0);
+            // Convert float32 to int16 PCM
+            const pcmData = new Int16Array(inputData.length);
+            for (let i = 0; i < inputData.length; i++) {
+              const s = Math.max(-1, Math.min(1, inputData[i]));
+              pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+            }
+            // Convert to base64
             const base64 = btoa(
-              new Uint8Array(arrayBuffer).reduce(
-                (data, byte) => data + String.fromCharCode(byte),
-                ""
-              )
+              String.fromCharCode(...new Uint8Array(pcmData.buffer))
             );
-            ws.send(JSON.stringify({ audio: base64 }));
+            // Send in correct format
+            ws.send(JSON.stringify({ audio_data: base64 }));
           }
         };
 
-        mediaRecorder.start(250); // Send audio chunks every 250ms
+        source.connect(processor);
+        processor.connect(audioContext.destination);
+
+        // Store for cleanup
+        mediaRecorderRef.current = { 
+          stop: () => {
+            processor.disconnect();
+            source.disconnect();
+            audioContext.close();
+          },
+          state: "recording"
+        } as unknown as MediaRecorder;
       };
 
       ws.onmessage = (event) => {
