@@ -21,7 +21,7 @@ export default function NewMeeting() {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [recordingTime, setRecordingTime] = useState(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [waveformHeights, setWaveformHeights] = useState<number[]>(
     Array(20).fill(20)
   );
@@ -134,22 +134,6 @@ export default function NewMeeting() {
     }, 1000);
   };
 
-  // Waveform component
-  const WaveformBars = () => (
-    <div className="flex items-end gap-1 h-16">
-      {waveformHeights.map((height, i) => (
-        <div
-          key={i}
-          className="w-1.5 bg-gradient-to-t from-accent to-accent/60 rounded-full transition-all duration-100"
-          style={{
-            height: `${Math.max(height, 8)}%`,
-            minHeight: "8px",
-          }}
-        />
-      ))}
-    </div>
-  );
-
   return (
     <Layout>
       <div className="p-8 max-w-4xl mx-auto">
@@ -243,7 +227,18 @@ export default function NewMeeting() {
 
               {/* Waveform */}
               <div className="w-full max-w-md mb-8">
-                <WaveformBars />
+                <div className="flex items-end justify-center gap-1 h-16">
+                  {waveformHeights.map((height, i) => (
+                    <div
+                      key={i}
+                      className="w-1.5 bg-gradient-to-t from-accent to-accent/60 rounded-full transition-all duration-100"
+                      style={{
+                        height: `${Math.max(height, 8)}%`,
+                        minHeight: "8px",
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
 
               {/* Live Transcript Preview */}
