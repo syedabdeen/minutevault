@@ -14,7 +14,77 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      meetings: {
+        Row: {
+          created_at: string
+          date: string
+          duration: string | null
+          id: string
+          speakers: number | null
+          status: string
+          time: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date?: string
+          duration?: string | null
+          id?: string
+          speakers?: number | null
+          status?: string
+          time?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          duration?: string | null
+          id?: string
+          speakers?: number | null
+          status?: string
+          time?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      transcripts: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          meeting_id: string
+          speaker: string
+          timestamp: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          meeting_id: string
+          speaker: string
+          timestamp?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          meeting_id?: string
+          speaker?: string
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transcripts_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

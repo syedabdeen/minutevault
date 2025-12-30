@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Search,
@@ -13,96 +13,66 @@ import {
   Download,
   ChevronRight,
   Filter,
+  Loader2,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-// Mock data for all meetings
-const allMeetings = [
-  {
-    id: "1",
-    title: "Q4 Budget Review",
-    date: "2024-12-28",
-    time: "10:00 AM",
-    duration: "45 min",
-    speakers: 4,
-    status: "completed",
-  },
-  {
-    id: "2",
-    title: "Product Roadmap Discussion",
-    date: "2024-12-27",
-    time: "2:00 PM",
-    duration: "1h 15min",
-    speakers: 6,
-    status: "completed",
-  },
-  {
-    id: "3",
-    title: "Client Onboarding - Acme Corp",
-    date: "2024-12-26",
-    time: "11:30 AM",
-    duration: "30 min",
-    speakers: 3,
-    status: "completed",
-  },
-  {
-    id: "4",
-    title: "Weekly Sprint Planning",
-    date: "2024-12-25",
-    time: "9:00 AM",
-    duration: "1h",
-    speakers: 8,
-    status: "completed",
-  },
-  {
-    id: "5",
-    title: "Marketing Strategy Review",
-    date: "2024-12-24",
-    time: "3:00 PM",
-    duration: "50 min",
-    speakers: 5,
-    status: "completed",
-  },
-  {
-    id: "6",
-    title: "Technical Architecture Discussion",
-    date: "2024-12-23",
-    time: "10:30 AM",
-    duration: "1h 30min",
-    speakers: 4,
-    status: "completed",
-  },
-  {
-    id: "7",
-    title: "HR Policy Update Meeting",
-    date: "2024-12-22",
-    time: "11:00 AM",
-    duration: "40 min",
-    speakers: 3,
-    status: "completed",
-  },
-  {
-    id: "8",
-    title: "Annual Performance Review Setup",
-    date: "2024-12-21",
-    time: "2:30 PM",
-    duration: "55 min",
-    speakers: 6,
-    status: "completed",
-  },
-];
+interface Meeting {
+  id: string;
+  title: string;
+  date: string;
+  time: string;
+  duration: string | null;
+  speakers: number | null;
+  status: string;
+}
 
 export default function AllMeetings() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("");
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredMeetings = allMeetings.filter((meeting) => {
+  useEffect(() => {
+    fetchMeetings();
+  }, []);
+
+  const fetchMeetings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("meetings")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setMeetings(data || []);
+    } catch (error) {
+      console.error("Error fetching meetings:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredMeetings = meetings.filter((meeting) => {
     const matchesSearch = meeting.title
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
     const matchesDate = dateFilter ? meeting.date === dateFilter : true;
     return matchesSearch && matchesDate;
   });
+
+  const formatTime = (time: string) => {
+    try {
+      const [hours, minutes] = time.split(":");
+      const h = parseInt(hours);
+      const ampm = h >= 12 ? "PM" : "AM";
+      const h12 = h % 12 || 12;
+      return `${h12}:${minutes} ${ampm}`;
+    } catch {
+      return time;
+    }
+  };
 
   return (
     <Layout>
@@ -160,67 +130,76 @@ export default function AllMeetings() {
           </CardContent>
         </Card>
 
+        {/* Loading State */}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 size={32} className="animate-spin text-primary" />
+          </div>
+        )}
+
         {/* Meetings Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredMeetings.map((meeting) => (
-            <Card
-              key={meeting.id}
-              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
-              onClick={() => navigate(`/meeting/${meeting.id}`)}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <FileText size={24} className="text-primary" />
+        {!loading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredMeetings.map((meeting) => (
+              <Card
+                key={meeting.id}
+                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
+                onClick={() => navigate(`/meeting/${meeting.id}`)}
+              >
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <FileText size={24} className="text-primary" />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Handle download
+                      }}
+                    >
+                      <Download size={16} />
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // Handle download
-                    }}
-                  >
-                    <Download size={16} />
-                  </Button>
-                </div>
 
-                <h3 className="font-semibold text-lg mb-2 group-hover:text-primary transition-colors line-clamp-2">
-                  {meeting.title}
-                </h3>
+                  <h3 className="font-semibold text-lg mb-2 group-hover:text-primary transition-colors line-clamp-2">
+                    {meeting.title}
+                  </h3>
 
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <Calendar size={14} />
-                    <span>{meeting.date}</span>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Calendar size={14} />
+                      <span>{meeting.date}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock size={14} />
+                      <span>
+                        {formatTime(meeting.time)} • {meeting.duration || "N/A"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Users size={14} />
+                      <span>{meeting.speakers || 0} speakers</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Clock size={14} />
-                    <span>
-                      {meeting.time} • {meeting.duration}
+
+                  <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
+                    <span className="text-xs px-2 py-1 rounded-full bg-success/20 text-success">
+                      Completed
                     </span>
+                    <ChevronRight
+                      size={18}
+                      className="text-muted-foreground group-hover:text-primary transition-colors"
+                    />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Users size={14} />
-                    <span>{meeting.speakers} speakers</span>
-                  </div>
-                </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
 
-                <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
-                  <span className="text-xs px-2 py-1 rounded-full bg-success/20 text-success">
-                    Completed
-                  </span>
-                  <ChevronRight
-                    size={18}
-                    className="text-muted-foreground group-hover:text-primary transition-colors"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {filteredMeetings.length === 0 && (
+        {!loading && filteredMeetings.length === 0 && (
           <Card>
             <CardContent className="p-12 text-center">
               <FileText
@@ -228,9 +207,19 @@ export default function AllMeetings() {
                 className="mx-auto text-muted-foreground mb-4"
               />
               <h3 className="text-lg font-semibold mb-2">No meetings found</h3>
-              <p className="text-muted-foreground">
-                Try adjusting your search or filter criteria
+              <p className="text-muted-foreground mb-4">
+                {meetings.length === 0
+                  ? "Start recording your first meeting"
+                  : "Try adjusting your search or filter criteria"}
               </p>
+              {meetings.length === 0 && (
+                <Button
+                  variant="gradient"
+                  onClick={() => navigate("/meeting/new")}
+                >
+                  Record New Meeting
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}
