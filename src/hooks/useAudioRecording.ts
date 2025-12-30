@@ -16,19 +16,35 @@ export function useAudioRecording() {
   const [error, setError] = useState<string | null>(null);
   
   const startTimeRef = useRef<number>(0);
-  const processedIdsRef = useRef<Set<string>>(new Set());
+  const transcriptCounterRef = useRef(0);
 
   const scribe = useScribe({
     modelId: "scribe_v2_realtime",
     commitStrategy: CommitStrategy.VAD,
     onSessionStarted: () => {
-      console.log("Session started");
+      console.log("ElevenLabs session started");
     },
     onPartialTranscript: (data) => {
-      console.log("Partial transcript:", data.text);
+      console.log("Partial:", data.text);
     },
     onCommittedTranscript: (data) => {
-      console.log("Committed transcript received:", data.text);
+      console.log("Committed:", data.text);
+      if (data.text && data.text.trim()) {
+        transcriptCounterRef.current += 1;
+        const timestamp = Date.now() - startTimeRef.current;
+        const speakerLabel = `Speaker ${((transcriptCounterRef.current - 1) % 4) + 1}`;
+        
+        setTranscripts(prev => [
+          ...prev,
+          {
+            id: `transcript-${transcriptCounterRef.current}-${Date.now()}`,
+            text: data.text,
+            timestamp,
+            speaker: speakerLabel,
+          },
+        ]);
+        setSpeakersDetected(prev => Math.max(prev, ((transcriptCounterRef.current - 1) % 4) + 1));
+      }
     },
     onError: (err) => {
       console.error("Scribe error:", err);
@@ -40,39 +56,11 @@ export function useAudioRecording() {
     },
   });
 
-  // Sync committed transcripts from SDK to our state
-  useEffect(() => {
-    if (scribe.committedTranscripts && scribe.committedTranscripts.length > 0) {
-      const newTranscripts: TranscriptSegment[] = [];
-      const speakers = new Set<string>();
-      
-      scribe.committedTranscripts.forEach((t, index) => {
-        if (!processedIdsRef.current.has(t.id)) {
-          processedIdsRef.current.add(t.id);
-          const speakerLabel = `Speaker ${(index % 4) + 1}`;
-          speakers.add(speakerLabel);
-          
-          newTranscripts.push({
-            id: t.id,
-            text: t.text,
-            timestamp: t.timestamp || Date.now() - startTimeRef.current,
-            speaker: speakerLabel,
-          });
-        }
-      });
-
-      if (newTranscripts.length > 0) {
-        setTranscripts(prev => [...prev, ...newTranscripts]);
-        setSpeakersDetected(prev => Math.max(prev, speakers.size));
-      }
-    }
-  }, [scribe.committedTranscripts]);
-
   const startRecording = useCallback(async () => {
     setError(null);
     setIsConnecting(true);
     startTimeRef.current = Date.now();
-    processedIdsRef.current = new Set();
+    transcriptCounterRef.current = 0;
     setTranscripts([]);
     setSpeakersDetected(0);
     scribe.clearTranscripts();
@@ -115,6 +103,10 @@ export function useAudioRecording() {
 
   const stopRecording = useCallback(async () => {
     try {
+      // Commit any remaining transcript before disconnecting
+      scribe.commit();
+      // Small delay to allow final commit to process
+      await new Promise(resolve => setTimeout(resolve, 500));
       scribe.disconnect();
     } catch (err) {
       console.error("Error stopping recording:", err);
