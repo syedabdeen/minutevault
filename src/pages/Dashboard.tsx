@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PullToRefresh } from "@/components/PullToRefresh";
+import { useHapticFeedback } from "@/hooks/useHapticFeedback";
+import { toast } from "sonner";
 import {
   Plus,
   Search,
@@ -59,10 +62,22 @@ const mockMeetings = [
 export default function Dashboard() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
+  const { lightTap } = useHapticFeedback();
 
   const filteredMeetings = mockMeetings.filter((meeting) =>
     meeting.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleRefresh = useCallback(async () => {
+    // Simulate data refresh
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    toast.success("Dashboard refreshed");
+  }, []);
+
+  const handleCardClick = (path: string) => {
+    lightTap();
+    navigate(path);
+  };
 
   const stats = [
     {
@@ -93,7 +108,8 @@ export default function Dashboard() {
 
   return (
     <Layout>
-      <div className="p-8">
+      <PullToRefresh onRefresh={handleRefresh} className="h-full">
+        <div className="p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -131,8 +147,8 @@ export default function Dashboard() {
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Card
-            className="cursor-pointer hover:border-primary/50 hover:shadow-glow transition-all group"
-            onClick={() => navigate("/meeting/new")}
+            className="cursor-pointer hover:border-primary/50 hover:shadow-glow transition-all group active:scale-[0.98]"
+            onClick={() => handleCardClick("/meeting/new")}
           >
             <CardContent className="p-6 flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-glow">
@@ -149,8 +165,8 @@ export default function Dashboard() {
           </Card>
 
           <Card
-            className="cursor-pointer hover:border-primary/50 transition-colors group"
-            onClick={() => navigate("/meetings")}
+            className="cursor-pointer hover:border-primary/50 transition-colors group active:scale-[0.98]"
+            onClick={() => handleCardClick("/meetings")}
           >
             <CardContent className="p-6 flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center">
@@ -167,8 +183,8 @@ export default function Dashboard() {
           </Card>
 
           <Card
-            className="cursor-pointer hover:border-primary/50 transition-colors group"
-            onClick={() => navigate("/settings")}
+            className="cursor-pointer hover:border-primary/50 transition-colors group active:scale-[0.98]"
+            onClick={() => handleCardClick("/settings")}
           >
             <CardContent className="p-6 flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center">
@@ -207,8 +223,8 @@ export default function Dashboard() {
               {filteredMeetings.map((meeting) => (
                 <div
                   key={meeting.id}
-                  onClick={() => navigate(`/meeting/${meeting.id}`)}
-                  className="flex items-center gap-4 p-4 rounded-xl hover:bg-secondary/50 cursor-pointer transition-colors group"
+                  onClick={() => handleCardClick(`/meeting/${meeting.id}`)}
+                  className="flex items-center gap-4 p-4 rounded-xl hover:bg-secondary/50 cursor-pointer transition-colors group active:bg-secondary/70"
                 >
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
                     <FileText size={20} className="text-primary" />
@@ -243,7 +259,8 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-      </div>
+        </div>
+      </PullToRefresh>
     </Layout>
   );
 }

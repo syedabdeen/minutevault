@@ -1,9 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PullToRefresh } from "@/components/PullToRefresh";
+import { useHapticFeedback } from "@/hooks/useHapticFeedback";
+import { toast } from "sonner";
 import {
   Search,
   Calendar,
@@ -33,12 +36,13 @@ export default function AllMeetings() {
   const [dateFilter, setDateFilter] = useState("");
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
+  const { lightTap } = useHapticFeedback();
 
   useEffect(() => {
     fetchMeetings();
   }, []);
 
-  const fetchMeetings = async () => {
+  const fetchMeetings = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("meetings")
@@ -52,6 +56,16 @@ export default function AllMeetings() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const handleRefresh = useCallback(async () => {
+    await fetchMeetings();
+    toast.success("Meetings refreshed");
+  }, [fetchMeetings]);
+
+  const handleMeetingClick = (id: string) => {
+    lightTap();
+    navigate(`/meeting/${id}`);
   };
 
   const filteredMeetings = meetings.filter((meeting) => {
@@ -76,7 +90,8 @@ export default function AllMeetings() {
 
   return (
     <Layout>
-      <div className="p-8">
+      <PullToRefresh onRefresh={handleRefresh} className="h-full">
+        <div className="p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -143,8 +158,8 @@ export default function AllMeetings() {
             {filteredMeetings.map((meeting) => (
               <Card
                 key={meeting.id}
-                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
-                onClick={() => navigate(`/meeting/${meeting.id}`)}
+                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group active:scale-[0.98]"
+                onClick={() => handleMeetingClick(meeting.id)}
               >
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-4">
@@ -223,7 +238,8 @@ export default function AllMeetings() {
             </CardContent>
           </Card>
         )}
-      </div>
+        </div>
+      </PullToRefresh>
     </Layout>
   );
 }
