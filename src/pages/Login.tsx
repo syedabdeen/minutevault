@@ -7,9 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowRight, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { getDeviceId } from "@/utils/deviceId";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -59,20 +60,23 @@ export default function Login() {
       }
 
       if (data.user) {
-        // Check subscription status
-        const { data: subscription } = await supabase
-          .from("subscriptions")
-          .select("*")
-          .eq("user_id", data.user.id)
-          .maybeSingle();
+        // Get device ID for binding check
+        const deviceId = getDeviceId();
+        
+        // Check device binding via database function
+        const { data: bindingResult, error: bindingError } = await supabase
+          .rpc('check_device_binding', {
+            _user_id: data.user.id,
+            _device_id: deviceId
+          });
 
-        if (subscription) {
-          const isActive =
-            (subscription.plan === "lifetime" && subscription.payment_status === "completed") ||
-            (subscription.plan === "trial" && new Date(subscription.trial_end_date) > new Date());
-
-          if (!isActive) {
-            toast.error("Your subscription has expired. Please contact support.");
+        if (bindingError) {
+          console.error("Device binding check error:", bindingError);
+          // Continue with login if function doesn't exist yet
+        } else if (bindingResult) {
+          const result = bindingResult as { allowed: boolean; reason: string };
+          if (!result.allowed) {
+            toast.error(result.reason || "Login blocked");
             await supabase.auth.signOut();
             return;
           }
@@ -215,23 +219,13 @@ export default function Login() {
               </Button>
             </form>
 
-            <div className="mt-6 text-center space-y-4">
+            <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
                 Don't have an account?{" "}
-                <Link to="/pricing" className="text-accent hover:underline">
-                  View Plans
+                <Link to="/register" className="text-accent hover:underline">
+                  Register
                 </Link>
               </p>
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate("/pricing")}
-                className="text-muted-foreground"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Pricing
-              </Button>
             </div>
           </CardContent>
         </Card>

@@ -2,42 +2,42 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Users,
-  Crown,
-  Clock,
+  Shield,
+  Smartphone,
   Settings,
   LogOut,
   FileText,
-  DollarSign,
-  Activity,
-  Download,
   RefreshCw,
+  UserCheck,
+  UserX,
 } from "lucide-react";
 import { AdminUsers } from "@/components/admin/AdminUsers";
-import { AdminPricing } from "@/components/admin/AdminPricing";
 import { AdminReports } from "@/components/admin/AdminReports";
 import { AdminSettings } from "@/components/admin/AdminSettings";
 
 interface Stats {
   totalUsers: number;
-  activeTrials: number;
-  lifetimeUsers: number;
-  expiredTrials: number;
+  activeUsers: number;
+  disabledUsers: number;
+  deviceBoundUsers: number;
+  whitelistedUsers: number;
 }
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<Stats>({
     totalUsers: 0,
-    activeTrials: 0,
-    lifetimeUsers: 0,
-    expiredTrials: 0,
+    activeUsers: 0,
+    disabledUsers: 0,
+    deviceBoundUsers: 0,
+    whitelistedUsers: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -68,23 +68,17 @@ export default function AdminDashboard() {
 
   const fetchStats = async () => {
     try {
-      const { data: subscriptions } = await supabase
-        .from("subscriptions")
+      const { data: profiles } = await supabase
+        .from("profiles")
         .select("*");
 
-      if (subscriptions) {
-        const now = new Date();
+      if (profiles) {
         setStats({
-          totalUsers: subscriptions.length,
-          activeTrials: subscriptions.filter(
-            (s) => s.plan === "trial" && new Date(s.trial_end_date) > now
-          ).length,
-          lifetimeUsers: subscriptions.filter(
-            (s) => s.plan === "lifetime" && s.payment_status === "completed"
-          ).length,
-          expiredTrials: subscriptions.filter(
-            (s) => s.plan === "trial" && new Date(s.trial_end_date) <= now
-          ).length,
+          totalUsers: profiles.length,
+          activeUsers: profiles.filter(p => p.status === 'active').length,
+          disabledUsers: profiles.filter(p => p.status === 'disabled').length,
+          deviceBoundUsers: profiles.filter(p => p.device_id).length,
+          whitelistedUsers: profiles.filter(p => p.is_whitelisted).length,
         });
       }
     } catch (error) {
@@ -102,9 +96,10 @@ export default function AdminDashboard() {
 
   const statCards = [
     { label: "Total Users", value: stats.totalUsers, icon: Users, color: "text-foreground" },
-    { label: "Active Trials", value: stats.activeTrials, icon: Clock, color: "text-accent" },
-    { label: "Lifetime Users", value: stats.lifetimeUsers, icon: Crown, color: "text-success" },
-    { label: "Expired Trials", value: stats.expiredTrials, icon: Activity, color: "text-warning" },
+    { label: "Active Users", value: stats.activeUsers, icon: UserCheck, color: "text-success" },
+    { label: "Disabled Users", value: stats.disabledUsers, icon: UserX, color: "text-destructive" },
+    { label: "Device Bound", value: stats.deviceBoundUsers, icon: Smartphone, color: "text-accent" },
+    { label: "Whitelisted", value: stats.whitelistedUsers, icon: Shield, color: "text-primary" },
   ];
 
   return (
@@ -127,7 +122,7 @@ export default function AdminDashboard() {
 
       <div className="p-6 max-w-7xl mx-auto">
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
           {statCards.map((stat) => (
             <Card key={stat.label} className="bg-card/50 backdrop-blur border-border/50">
               <CardContent className="p-6">
@@ -155,14 +150,10 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 max-w-xl">
+          <TabsList className="grid w-full grid-cols-3 max-w-md">
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               <span className="hidden sm:inline">Users</span>
-            </TabsTrigger>
-            <TabsTrigger value="pricing" className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4" />
-              <span className="hidden sm:inline">Pricing</span>
             </TabsTrigger>
             <TabsTrigger value="reports" className="flex items-center gap-2">
               <FileText className="w-4 h-4" />
@@ -176,10 +167,6 @@ export default function AdminDashboard() {
 
           <TabsContent value="users">
             <AdminUsers onRefresh={fetchStats} />
-          </TabsContent>
-
-          <TabsContent value="pricing">
-            <AdminPricing />
           </TabsContent>
 
           <TabsContent value="reports">

@@ -198,11 +198,11 @@ export default function AdminLogin() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate("/pricing")}
+                onClick={() => navigate("/login")}
                 className="text-muted-foreground"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Main Site
+                Back to User Login
               </Button>
             </div>
 
