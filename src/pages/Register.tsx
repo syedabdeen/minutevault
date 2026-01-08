@@ -1,13 +1,12 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowRight, ArrowLeft, Eye, EyeOff, Clock, Crown } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -24,8 +23,6 @@ const registerSchema = z.object({
 
 export default function Register() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const plan = searchParams.get("plan") || "trial";
   
   const [formData, setFormData] = useState({
     fullName: "",
@@ -80,13 +77,8 @@ export default function Register() {
           mobile: formData.mobile,
         }));
 
-        if (plan === "lifetime") {
-          toast.success("Registration successful! Your account is pending activation. Please complete payment and contact admin.");
-          navigate("/pending-activation");
-        } else {
-          toast.success("Welcome to MinuteVault! Your 14-day trial has started.");
-          navigate("/dashboard");
-        }
+        toast.success("Welcome to MinuteVault! Your account has been created.");
+        navigate("/dashboard");
       }
     } catch (error) {
       toast.error("An unexpected error occurred");
@@ -110,24 +102,9 @@ export default function Register() {
 
         <Card className="border-border/50 bg-card/50 backdrop-blur">
           <CardHeader className="space-y-1">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-2xl">Create Account</CardTitle>
-              {plan === "trial" ? (
-                <Badge variant="outline" className="text-accent border-accent">
-                  <Clock className="w-3 h-3 mr-1" />
-                  14-Day Trial
-                </Badge>
-              ) : (
-                <Badge className="bg-primary/20 text-primary border-primary/30">
-                  <Crown className="w-3 h-3 mr-1" />
-                  Lifetime
-                </Badge>
-              )}
-            </div>
+            <CardTitle className="text-2xl">Create Account</CardTitle>
             <CardDescription>
-              {plan === "trial"
-                ? "Start your free 14-day trial"
-                : "Register for lifetime access"}
+              Register to start using MinuteVault
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -227,30 +204,20 @@ export default function Register() {
                   <span className="animate-pulse">Creating account...</span>
                 ) : (
                   <>
-                    {plan === "trial" ? "Start Free Trial" : "Create Account"}
+                    Create Account
                     <ArrowRight size={18} />
                   </>
                 )}
               </Button>
             </form>
 
-            <div className="mt-6 text-center space-y-4">
+            <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
                 Already have an account?{" "}
                 <Link to="/login" className="text-accent hover:underline">
                   Sign In
                 </Link>
               </p>
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate("/pricing")}
-                className="text-muted-foreground"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Pricing
-              </Button>
             </div>
 
             <p className="text-xs text-center text-muted-foreground mt-6">

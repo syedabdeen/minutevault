@@ -4,20 +4,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
   Search,
-  Crown,
-  Clock,
   RefreshCw,
-  Plus,
   CheckCircle,
   XCircle,
-  AlertCircle,
+  Smartphone,
+  Shield,
+  UserX,
+  UserCheck,
 } from "lucide-react";
 
 interface User {
@@ -26,13 +27,9 @@ interface User {
   email: string;
   mobile: string | null;
   created_at: string;
-  subscription: {
-    plan: string;
-    trial_start_date: string | null;
-    trial_end_date: string | null;
-    lifetime_activated_at: string | null;
-    payment_status: string;
-  } | null;
+  device_id: string | null;
+  is_whitelisted: boolean;
+  status: string;
 }
 
 interface AdminUsersProps {
@@ -44,9 +41,8 @@ export function AdminUsers({ onRefresh }: AdminUsersProps) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [extendDays, setExtendDays] = useState("7");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [actionType, setActionType] = useState<"extend" | "activate" | "convert">("extend");
+  const [actionType, setActionType] = useState<"reset_device" | "toggle_status" | "toggle_whitelist">("reset_device");
 
   useEffect(() => {
     fetchUsers();
@@ -61,30 +57,7 @@ export function AdminUsers({ onRefresh }: AdminUsersProps) {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-
-      // Fetch subscriptions for each user
-      const usersWithSubs = await Promise.all(
-        (profiles || []).map(async (profile) => {
-          const { data: subscription } = await supabase
-            .from("subscriptions")
-            .select("*")
-            .eq("user_id", profile.id)
-            .maybeSingle();
-
-          return {
-            ...profile,
-            subscription: subscription ? {
-              plan: subscription.plan,
-              trial_start_date: subscription.trial_start_date,
-              trial_end_date: subscription.trial_end_date,
-              lifetime_activated_at: subscription.lifetime_activated_at,
-              payment_status: subscription.payment_status,
-            } : null,
-          };
-        })
-      );
-
-      setUsers(usersWithSubs);
+      setUsers(profiles || []);
     } catch (error) {
       console.error("Error fetching users:", error);
       toast.error("Failed to load users");
@@ -93,114 +66,73 @@ export function AdminUsers({ onRefresh }: AdminUsersProps) {
     }
   };
 
-  const getSubscriptionStatus = (user: User) => {
-    if (!user.subscription) return { status: "none", label: "No Subscription", variant: "outline" as const };
-    
-    const { plan, trial_end_date, payment_status } = user.subscription;
-    
-    if (plan === "lifetime" && payment_status === "completed") {
-      return { status: "lifetime", label: "Lifetime", variant: "default" as const };
+  const getStatusBadge = (user: User) => {
+    if (user.status === 'disabled') {
+      return { label: "Disabled", variant: "destructive" as const, icon: XCircle };
     }
-    
-    if (plan === "lifetime" && payment_status === "pending") {
-      return { status: "pending", label: "Pending Activation", variant: "secondary" as const };
-    }
-    
-    if (plan === "trial") {
-      const isActive = trial_end_date && new Date(trial_end_date) > new Date();
-      return isActive
-        ? { status: "trial", label: "Trial Active", variant: "outline" as const }
-        : { status: "expired", label: "Trial Expired", variant: "destructive" as const };
-    }
-    
-    return { status: "unknown", label: "Unknown", variant: "outline" as const };
+    return { label: "Active", variant: "default" as const, icon: CheckCircle };
   };
 
-  const handleExtendTrial = async () => {
+  const handleResetDevice = async () => {
     if (!selectedUser) return;
 
     try {
-      const days = parseInt(extendDays);
-      const currentEndDate = selectedUser.subscription?.trial_end_date
-        ? new Date(selectedUser.subscription.trial_end_date)
-        : new Date();
+      const { error } = await supabase
+        .rpc('reset_device_binding', { _user_id: selectedUser.id });
+
+      if (error) throw error;
+
+      toast.success("Device binding reset successfully");
+      fetchUsers();
+      onRefresh();
+      setDialogOpen(false);
+    } catch (error) {
+      console.error("Error resetting device:", error);
+      toast.error("Failed to reset device binding");
+    }
+  };
+
+  const handleToggleStatus = async () => {
+    if (!selectedUser) return;
+
+    try {
+      const newStatus = selectedUser.status === 'active' ? 'disabled' : 'active';
       
-      const newEndDate = new Date(Math.max(currentEndDate.getTime(), Date.now()));
-      newEndDate.setDate(newEndDate.getDate() + days);
-
       const { error } = await supabase
-        .from("subscriptions")
-        .update({
-          trial_end_date: newEndDate.toISOString(),
-          plan: "trial",
-        })
-        .eq("user_id", selectedUser.id);
+        .from("profiles")
+        .update({ status: newStatus })
+        .eq("id", selectedUser.id);
 
       if (error) throw error;
 
-      toast.success(`Trial extended by ${days} days`);
+      toast.success(`User ${newStatus === 'active' ? 'enabled' : 'disabled'} successfully`);
       fetchUsers();
       onRefresh();
       setDialogOpen(false);
     } catch (error) {
-      console.error("Error extending trial:", error);
-      toast.error("Failed to extend trial");
+      console.error("Error toggling status:", error);
+      toast.error("Failed to update user status");
     }
   };
 
-  const handleActivateLifetime = async () => {
+  const handleToggleWhitelist = async () => {
     if (!selectedUser) return;
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-
       const { error } = await supabase
-        .from("subscriptions")
-        .update({
-          plan: "lifetime",
-          payment_status: "completed",
-          lifetime_activated_at: new Date().toISOString(),
-          activated_by: user?.id,
-        })
-        .eq("user_id", selectedUser.id);
+        .from("profiles")
+        .update({ is_whitelisted: !selectedUser.is_whitelisted })
+        .eq("id", selectedUser.id);
 
       if (error) throw error;
 
-      toast.success("Lifetime access activated!");
+      toast.success(`Whitelist ${!selectedUser.is_whitelisted ? 'enabled' : 'disabled'} for user`);
       fetchUsers();
       onRefresh();
       setDialogOpen(false);
     } catch (error) {
-      console.error("Error activating lifetime:", error);
-      toast.error("Failed to activate lifetime access");
-    }
-  };
-
-  const handleConvertToLifetime = async () => {
-    if (!selectedUser) return;
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      const { error } = await supabase
-        .from("subscriptions")
-        .update({
-          plan: "lifetime",
-          payment_status: "completed",
-          lifetime_activated_at: new Date().toISOString(),
-          activated_by: user?.id,
-        })
-        .eq("user_id", selectedUser.id);
-
-      if (error) throw error;
-
-      toast.success("Converted to lifetime access!");
-      fetchUsers();
-      onRefresh();
-      setDialogOpen(false);
-    } catch (error) {
-      console.error("Error converting to lifetime:", error);
-      toast.error("Failed to convert to lifetime");
+      console.error("Error toggling whitelist:", error);
+      toast.error("Failed to update whitelist status");
     }
   };
 
@@ -210,7 +142,7 @@ export function AdminUsers({ onRefresh }: AdminUsersProps) {
       user.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  const openDialog = (user: User, type: "extend" | "activate" | "convert") => {
+  const openDialog = (user: User, type: "reset_device" | "toggle_status" | "toggle_whitelist") => {
     setSelectedUser(user);
     setActionType(type);
     setDialogOpen(true);
@@ -249,10 +181,10 @@ export function AdminUsers({ onRefresh }: AdminUsersProps) {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Plan</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Device</TableHead>
+                <TableHead>Whitelist</TableHead>
                 <TableHead>Registered</TableHead>
-                <TableHead>Trial Ends</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -271,68 +203,77 @@ export function AdminUsers({ onRefresh }: AdminUsersProps) {
                 </TableRow>
               ) : (
                 filteredUsers.map((user) => {
-                  const { status, label, variant } = getSubscriptionStatus(user);
+                  const { label, variant, icon: StatusIcon } = getStatusBadge(user);
                   return (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.full_name}</TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          {user.subscription?.plan === "lifetime" ? (
-                            <Crown className="w-4 h-4 text-primary" />
-                          ) : (
-                            <Clock className="w-4 h-4 text-accent" />
-                          )}
-                          <span className="capitalize">{user.subscription?.plan || "None"}</span>
-                        </div>
+                        <Badge variant={variant} className="gap-1">
+                          <StatusIcon className="w-3 h-3" />
+                          {label}
+                        </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={variant}>{label}</Badge>
+                        {user.device_id ? (
+                          <Badge variant="outline" className="gap-1">
+                            <Smartphone className="w-3 h-3" />
+                            Bound
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">Not bound</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {user.is_whitelisted ? (
+                          <Badge className="bg-success/20 text-success border-success/30 gap-1">
+                            <Shield className="w-3 h-3" />
+                            Yes
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">No</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {format(new Date(user.created_at), "MMM d, yyyy")}
                       </TableCell>
                       <TableCell>
-                        {user.subscription?.trial_end_date
-                          ? format(new Date(user.subscription.trial_end_date), "MMM d, yyyy")
-                          : "-"}
-                      </TableCell>
-                      <TableCell>
                         <div className="flex items-center gap-2">
-                          {status === "trial" || status === "expired" ? (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openDialog(user, "extend")}
-                              >
-                                <Plus className="w-3 h-3 mr-1" />
-                                Extend
-                              </Button>
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => openDialog(user, "convert")}
-                              >
-                                <Crown className="w-3 h-3 mr-1" />
-                                Convert
-                              </Button>
-                            </>
-                          ) : status === "pending" ? (
+                          {user.device_id && (
                             <Button
-                              variant="default"
+                              variant="outline"
                               size="sm"
-                              onClick={() => openDialog(user, "activate")}
+                              onClick={() => openDialog(user, "reset_device")}
                             >
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Activate
+                              <Smartphone className="w-3 h-3 mr-1" />
+                              Reset
                             </Button>
-                          ) : status === "lifetime" ? (
-                            <Badge variant="outline" className="text-success border-success/30">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Active
-                            </Badge>
-                          ) : null}
+                          )}
+                          <Button
+                            variant={user.status === 'active' ? "outline" : "default"}
+                            size="sm"
+                            onClick={() => openDialog(user, "toggle_status")}
+                          >
+                            {user.status === 'active' ? (
+                              <>
+                                <UserX className="w-3 h-3 mr-1" />
+                                Disable
+                              </>
+                            ) : (
+                              <>
+                                <UserCheck className="w-3 h-3 mr-1" />
+                                Enable
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openDialog(user, "toggle_whitelist")}
+                          >
+                            <Shield className="w-3 h-3 mr-1" />
+                            {user.is_whitelisted ? "Unwhitelist" : "Whitelist"}
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -348,38 +289,67 @@ export function AdminUsers({ onRefresh }: AdminUsersProps) {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {actionType === "extend" && "Extend Trial Period"}
-                {actionType === "activate" && "Activate Lifetime Access"}
-                {actionType === "convert" && "Convert to Lifetime"}
+                {actionType === "reset_device" && "Reset Device Binding"}
+                {actionType === "toggle_status" && (selectedUser?.status === 'active' ? "Disable User" : "Enable User")}
+                {actionType === "toggle_whitelist" && (selectedUser?.is_whitelisted ? "Remove from Whitelist" : "Add to Whitelist")}
               </DialogTitle>
               <DialogDescription>
                 {selectedUser && `User: ${selectedUser.full_name} (${selectedUser.email})`}
               </DialogDescription>
             </DialogHeader>
 
-            {actionType === "extend" && (
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="days">Number of days to extend</Label>
-                  <Input
-                    id="days"
-                    type="number"
-                    min="1"
-                    value={extendDays}
-                    onChange={(e) => setExtendDays(e.target.value)}
-                  />
+            {actionType === "reset_device" && (
+              <div className="py-4">
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-warning/10 border border-warning/20">
+                  <Smartphone className="w-6 h-6 text-warning" />
+                  <div>
+                    <p className="font-medium">Reset Device Binding</p>
+                    <p className="text-sm text-muted-foreground">
+                      This will allow the user to log in from a new device
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
 
-            {(actionType === "activate" || actionType === "convert") && (
+            {actionType === "toggle_status" && (
               <div className="py-4">
-                <div className="flex items-center gap-3 p-4 rounded-lg bg-success/10 border border-success/20">
-                  <Crown className="w-6 h-6 text-success" />
+                <div className={`flex items-center gap-3 p-4 rounded-lg ${
+                  selectedUser?.status === 'active' 
+                    ? 'bg-destructive/10 border border-destructive/20' 
+                    : 'bg-success/10 border border-success/20'
+                }`}>
+                  {selectedUser?.status === 'active' ? (
+                    <UserX className="w-6 h-6 text-destructive" />
+                  ) : (
+                    <UserCheck className="w-6 h-6 text-success" />
+                  )}
                   <div>
-                    <p className="font-medium">Lifetime Access</p>
+                    <p className="font-medium">
+                      {selectedUser?.status === 'active' ? 'Disable Account' : 'Enable Account'}
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                      User will have permanent access to all features
+                      {selectedUser?.status === 'active' 
+                        ? 'User will be blocked from logging in' 
+                        : 'User will be able to log in again'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {actionType === "toggle_whitelist" && (
+              <div className="py-4">
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-primary/10 border border-primary/20">
+                  <Shield className="w-6 h-6 text-primary" />
+                  <div>
+                    <p className="font-medium">
+                      {selectedUser?.is_whitelisted ? 'Remove from Whitelist' : 'Add to Whitelist'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedUser?.is_whitelisted 
+                        ? 'User will be subject to device restrictions' 
+                        : 'User can log in from multiple devices'}
                     </p>
                   </div>
                 </div>
@@ -391,16 +361,16 @@ export function AdminUsers({ onRefresh }: AdminUsersProps) {
                 Cancel
               </Button>
               <Button
-                variant="gradient"
+                variant={actionType === "toggle_status" && selectedUser?.status === 'active' ? "destructive" : "default"}
                 onClick={() => {
-                  if (actionType === "extend") handleExtendTrial();
-                  else if (actionType === "activate") handleActivateLifetime();
-                  else handleConvertToLifetime();
+                  if (actionType === "reset_device") handleResetDevice();
+                  else if (actionType === "toggle_status") handleToggleStatus();
+                  else handleToggleWhitelist();
                 }}
               >
-                {actionType === "extend" && "Extend Trial"}
-                {actionType === "activate" && "Activate"}
-                {actionType === "convert" && "Convert to Lifetime"}
+                {actionType === "reset_device" && "Reset Device"}
+                {actionType === "toggle_status" && (selectedUser?.status === 'active' ? "Disable" : "Enable")}
+                {actionType === "toggle_whitelist" && "Confirm"}
               </Button>
             </DialogFooter>
           </DialogContent>

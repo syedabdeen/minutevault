@@ -98,26 +98,35 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          device_id: string | null
           email: string
           full_name: string
           id: string
+          is_whitelisted: boolean
           mobile: string | null
+          status: string
           updated_at: string
         }
         Insert: {
           created_at?: string
+          device_id?: string | null
           email: string
           full_name: string
           id: string
+          is_whitelisted?: boolean
           mobile?: string | null
+          status?: string
           updated_at?: string
         }
         Update: {
           created_at?: string
+          device_id?: string | null
           email?: string
           full_name?: string
           id?: string
+          is_whitelisted?: boolean
           mobile?: string | null
+          status?: string
           updated_at?: string
         }
         Relationships: []
@@ -222,6 +231,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_device_binding: {
+        Args: { _device_id: string; _user_id: string }
+        Returns: Json
+      }
       has_active_subscription: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
@@ -230,6 +243,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      reset_device_binding: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "user"
