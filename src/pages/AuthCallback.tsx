@@ -40,49 +40,78 @@ export default function AuthCallback() {
 
   const handleCallback = async () => {
     try {
+      console.log("[AuthCallback] Starting callback handler...");
+      console.log("[AuthCallback] Current URL:", window.location.href);
+      
       // Check for error in URL params
       const params = new URLSearchParams(window.location.search);
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
+
+      console.log("[AuthCallback] URL params:", Object.fromEntries(params.entries()));
+      console.log("[AuthCallback] Hash params:", Object.fromEntries(hashParams.entries()));
 
       const errorParam = params.get("error") || hashParams.get("error");
       const errorDescription =
         params.get("error_description") || hashParams.get("error_description");
 
       if (errorParam) {
-        throw new Error(errorDescription || errorParam);
+        console.error("[AuthCallback] OAuth error received:", errorParam, errorDescription);
+        // Parse common OAuth errors for better messaging
+        let userMessage = errorDescription || errorParam;
+        if (errorParam === "access_denied") {
+          userMessage = "Access was denied. Please try again or contact support.";
+        } else if (errorParam === "invalid_request") {
+          userMessage = "Invalid authentication request. Please clear your browser cache and try again.";
+        } else if (errorDescription?.includes("403")) {
+          userMessage = "Authentication blocked (403). The Google OAuth configuration may need to be updated.";
+        }
+        throw new Error(userMessage);
       }
 
       // Check for authorization code (PKCE flow)
       const code = params.get("code");
+      console.log("[AuthCallback] Authorization code present:", !!code);
 
       if (code) {
-        const { error: exchangeError } = await withTimeout(
+        console.log("[AuthCallback] Exchanging code for session...");
+        const { data: exchangeData, error: exchangeError } = await withTimeout(
           supabase.auth.exchangeCodeForSession(code),
           10000,
-          "Timed out while completing Google sign-in (possible redirect/authorization misconfiguration)."
+          "Timed out while completing Google sign-in. Please try again."
         );
-        if (exchangeError) throw exchangeError;
+        if (exchangeError) {
+          console.error("[AuthCallback] Code exchange error:", exchangeError);
+          throw exchangeError;
+        }
+        console.log("[AuthCallback] Code exchange successful:", !!exchangeData?.session);
       }
 
       // Wait for session to be available (retry a few times)
+      console.log("[AuthCallback] Waiting for session...");
       let session = null;
       for (let i = 0; i < 10; i++) {
         const { data } = await supabase.auth.getSession();
         if (data.session) {
           session = data.session;
+          console.log("[AuthCallback] Session established on attempt", i + 1);
           break;
         }
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
       if (!session) {
-        throw new Error("Failed to establish session");
+        console.error("[AuthCallback] No session after 10 attempts");
+        throw new Error("Failed to establish session. Please try signing in again.");
       }
 
       const user = session.user;
+      console.log("[AuthCallback] User authenticated:", user.email);
+      
       const deviceId = getDeviceId();
+      console.log("[AuthCallback] Device ID:", deviceId);
 
       // Check device binding
+      console.log("[AuthCallback] Checking device binding...");
       const { data: bindingResult, error: bindingError } = await supabase.rpc(
         "check_device_binding",
         {
@@ -92,9 +121,10 @@ export default function AuthCallback() {
       );
 
       if (bindingError) {
-        console.error("Device binding check error:", bindingError);
+        console.error("[AuthCallback] Device binding check error:", bindingError);
       } else if (bindingResult) {
         const result = bindingResult as { allowed: boolean; reason: string };
+        console.log("[AuthCallback] Device binding result:", result);
         if (!result.allowed) {
           toast.error(result.reason || "Login blocked");
           await supabase.auth.signOut();
@@ -104,6 +134,7 @@ export default function AuthCallback() {
       }
 
       // Get profile
+      console.log("[AuthCallback] Fetching user profile...");
       const { data: profile } = await supabase
         .from("profiles")
         .select("*")
@@ -111,6 +142,7 @@ export default function AuthCallback() {
         .maybeSingle();
 
       if (profile) {
+        console.log("[AuthCallback] Profile found:", profile.email);
         localStorage.setItem(
           "mom_user",
           JSON.stringify({
@@ -120,6 +152,7 @@ export default function AuthCallback() {
           })
         );
       } else {
+        console.log("[AuthCallback] No profile found, using auth metadata");
         localStorage.setItem(
           "mom_user",
           JSON.stringify({
@@ -133,10 +166,11 @@ export default function AuthCallback() {
         );
       }
 
+      console.log("[AuthCallback] Sign-in complete, redirecting to dashboard");
       toast.success("Welcome to MinuteVault!");
       navigate("/dashboard");
     } catch (err) {
-      console.error("Auth callback error:", err);
+      console.error("[AuthCallback] Auth callback error:", err);
       setError(formatError(err));
     }
   };
