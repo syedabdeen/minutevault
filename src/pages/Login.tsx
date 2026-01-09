@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,24 @@ export default function Login() {
     return !!localStorage.getItem("user_remembered_credentials");
   });
   const [isLoading, setIsLoading] = useState(false);
+
+  // If Google redirects back to the site root (common/safer configuration),
+  // forward the OAuth params to our dedicated callback handler.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+
+    const hasOAuthParams =
+      params.has("code") ||
+      params.has("error") ||
+      hashParams.has("access_token") ||
+      hashParams.has("error");
+
+    if (hasOAuthParams) {
+      const suffix = `${window.location.search}${window.location.hash}`;
+      navigate(`/auth/callback${suffix}`, { replace: true });
+    }
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
