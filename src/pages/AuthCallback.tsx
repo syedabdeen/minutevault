@@ -14,38 +14,65 @@ export default function AuthCallback() {
     handleCallback();
   }, []);
 
+  const formatError = (e: unknown) => {
+    if (e && typeof e === "object") {
+      const anyE = e as { message?: string; status?: number; name?: string };
+      const msg = anyE.message || "Failed to complete sign in";
+      const status = typeof anyE.status === "number" ? ` (HTTP ${anyE.status})` : "";
+      return `${msg}${status}`;
+    }
+    return "Failed to complete sign in";
+  };
+
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string) => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+        }),
+      ]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  };
+
   const handleCallback = async () => {
     try {
       // Check for error in URL params
       const params = new URLSearchParams(window.location.search);
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      
+
       const errorParam = params.get("error") || hashParams.get("error");
-      const errorDescription = params.get("error_description") || hashParams.get("error_description");
-      
+      const errorDescription =
+        params.get("error_description") || hashParams.get("error_description");
+
       if (errorParam) {
         throw new Error(errorDescription || errorParam);
       }
 
       // Check for authorization code (PKCE flow)
       const code = params.get("code");
-      
+
       if (code) {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-        if (exchangeError) {
-          throw exchangeError;
-        }
+        const { error: exchangeError } = await withTimeout(
+          supabase.auth.exchangeCodeForSession(code),
+          10000,
+          "Timed out while completing Google sign-in (possible redirect/authorization misconfiguration)."
+        );
+        if (exchangeError) throw exchangeError;
       }
 
       // Wait for session to be available (retry a few times)
       let session = null;
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 10; i++) {
         const { data } = await supabase.auth.getSession();
         if (data.session) {
           session = data.session;
           break;
         }
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
       if (!session) {
@@ -56,11 +83,13 @@ export default function AuthCallback() {
       const deviceId = getDeviceId();
 
       // Check device binding
-      const { data: bindingResult, error: bindingError } = await supabase
-        .rpc('check_device_binding', {
+      const { data: bindingResult, error: bindingError } = await supabase.rpc(
+        "check_device_binding",
+        {
           _user_id: user.id,
-          _device_id: deviceId
-        });
+          _device_id: deviceId,
+        }
+      );
 
       if (bindingError) {
         console.error("Device binding check error:", bindingError);
@@ -82,24 +111,33 @@ export default function AuthCallback() {
         .maybeSingle();
 
       if (profile) {
-        localStorage.setItem("mom_user", JSON.stringify({
-          fullName: profile.full_name,
-          email: profile.email,
-          mobile: profile.mobile,
-        }));
+        localStorage.setItem(
+          "mom_user",
+          JSON.stringify({
+            fullName: profile.full_name,
+            email: profile.email,
+            mobile: profile.mobile,
+          })
+        );
       } else {
-        localStorage.setItem("mom_user", JSON.stringify({
-          fullName: user.user_metadata?.full_name || user.email?.split("@")[0] || "User",
-          email: user.email,
-          mobile: user.user_metadata?.phone || null,
-        }));
+        localStorage.setItem(
+          "mom_user",
+          JSON.stringify({
+            fullName:
+              user.user_metadata?.full_name ||
+              user.email?.split("@")[0] ||
+              "User",
+            email: user.email,
+            mobile: user.user_metadata?.phone || null,
+          })
+        );
       }
 
       toast.success("Welcome to MinuteVault!");
       navigate("/dashboard");
     } catch (err) {
       console.error("Auth callback error:", err);
-      setError(err instanceof Error ? err.message : "Failed to complete sign in");
+      setError(formatError(err));
     }
   };
 
