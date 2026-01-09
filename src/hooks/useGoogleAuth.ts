@@ -15,7 +15,9 @@ export function useGoogleAuth() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          // Use the site's root URL to avoid "redirect URL not allowed" / 403 errors
+          // when /auth/callback isn't whitelisted in backend redirect settings.
+          redirectTo: window.location.origin,
         },
       });
 
