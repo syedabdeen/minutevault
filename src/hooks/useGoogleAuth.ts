@@ -12,18 +12,47 @@ export function useGoogleAuth() {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      // In embedded contexts (like the Lovable preview iframe), Google OAuth can throw 403.
+      // We request the URL without auto-redirect, then navigate the *top* window.
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          // Use the site's root URL to avoid "redirect URL not allowed" / 403 errors
-          // when /auth/callback isn't whitelisted in backend redirect settings.
           redirectTo: window.location.origin,
+          skipBrowserRedirect: true,
         },
       });
 
       if (error) {
         console.error("Google sign-in error:", error);
-        toast.error("Failed to sign in with Google");
+        toast.error(error.message || "Failed to sign in with Google");
+        return;
+      }
+
+      if (!data?.url) {
+        toast.error("Failed to start Google sign-in (missing redirect URL)");
+        return;
+      }
+
+      console.log("[GoogleAuth] Redirecting to:", data.url);
+
+      // If we're inside an iframe (common in preview tools), open OAuth in a new tab.
+      // Google often blocks OAuth in embedded contexts with 403.
+      const isEmbedded = (() => {
+        try {
+          return window.self !== window.top;
+        } catch {
+          return true;
+        }
+      })();
+
+      if (isEmbedded) {
+        const newTab = window.open(data.url, "_blank", "noopener,noreferrer");
+        if (!newTab) {
+          // Popup blocked; fall back to same-tab navigation
+          window.location.assign(data.url);
+        }
+      } else {
+        window.location.assign(data.url);
       }
     } catch (error) {
       console.error("Google sign-in error:", error);
