@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -38,12 +39,12 @@ const App = () => (
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           
           {/* Protected app routes */}
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/meeting/new" element={<NewMeeting />} />
-          <Route path="/meeting/:id" element={<MeetingDetail />} />
-          <Route path="/meetings" element={<AllMeetings />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/install" element={<Install />} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/meeting/new" element={<ProtectedRoute><NewMeeting /></ProtectedRoute>} />
+          <Route path="/meeting/:id" element={<ProtectedRoute><MeetingDetail /></ProtectedRoute>} />
+          <Route path="/meetings" element={<ProtectedRoute><AllMeetings /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/install" element={<ProtectedRoute><Install /></ProtectedRoute>} />
           
           <Route path="*" element={<NotFound />} />
         </Routes>
