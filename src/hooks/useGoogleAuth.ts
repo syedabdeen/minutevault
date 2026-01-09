@@ -12,28 +12,21 @@ export function useGoogleAuth() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams: {
-            access_type: "offline",
-            prompt: "consent",
-          },
         },
       });
 
       if (error) {
         console.error("Google sign-in error:", error);
         toast.error("Failed to sign in with Google");
-        setIsLoading(false);
-        return;
       }
-
-      // The redirect will happen automatically
     } catch (error) {
       console.error("Google sign-in error:", error);
       toast.error("An unexpected error occurred");
+    } finally {
       setIsLoading(false);
     }
   };
