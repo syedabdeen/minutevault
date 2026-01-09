@@ -6,11 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { getDeviceId } from "@/utils/deviceId";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -138,6 +140,22 @@ export default function Login() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Google Sign In */}
+            <div className="mb-6">
+              <GoogleSignInButton label="Sign in with Google" />
+            </div>
+
+            <div className="relative mb-6">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">
+                  Or continue with email
+                </span>
+              </div>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
