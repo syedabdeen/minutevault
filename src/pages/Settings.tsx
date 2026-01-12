@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Building2,
   Upload,
@@ -15,6 +16,11 @@ import {
   FileText,
   Trash2,
   Loader2,
+  Shield,
+  Smartphone,
+  Clock,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +34,19 @@ interface UserSettings {
   company_logo_url: string;
   region: string;
   language: string;
+}
+
+interface WhitelistRequest {
+  id: string;
+  status: string;
+  reason: string;
+  admin_response: string | null;
+  created_at: string;
+}
+
+interface UserProfile {
+  is_whitelisted: boolean;
+  device_id: string | null;
 }
 
 export default function Settings() {
@@ -46,10 +65,97 @@ export default function Settings() {
     { id: 1, name: "Company Policy Manual.pdf", size: "2.4 MB" },
     { id: 2, name: "Meeting Guidelines.docx", size: "156 KB" },
   ]);
+  
+  // Whitelist request state
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [whitelistRequest, setWhitelistRequest] = useState<WhitelistRequest | null>(null);
+  const [requestReason, setRequestReason] = useState("");
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
 
   useEffect(() => {
     fetchSettings();
+    fetchWhitelistStatus();
   }, []);
+
+  const fetchWhitelistStatus = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Fetch user profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_whitelisted, device_id")
+        .eq("id", user.id)
+        .single();
+
+      if (profile) {
+        setUserProfile(profile);
+      }
+
+      // Fetch latest whitelist request
+      const { data: request } = await supabase
+        .from("whitelist_requests")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (request) {
+        setWhitelistRequest(request);
+      }
+    } catch (error) {
+      console.error("Error fetching whitelist status:", error);
+    }
+  };
+
+  const handleSubmitWhitelistRequest = async () => {
+    if (!requestReason.trim()) {
+      toast.error("Please provide a reason for your request");
+      return;
+    }
+
+    setIsSubmittingRequest(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("You must be logged in");
+        return;
+      }
+
+      const { error } = await supabase
+        .from("whitelist_requests")
+        .insert({
+          user_id: user.id,
+          reason: requestReason.trim(),
+        });
+
+      if (error) throw error;
+
+      toast.success("Request submitted successfully");
+      setRequestReason("");
+      fetchWhitelistStatus();
+    } catch (error) {
+      console.error("Error submitting request:", error);
+      toast.error("Failed to submit request");
+    } finally {
+      setIsSubmittingRequest(false);
+    }
+  };
+
+  const getRequestStatusInfo = (status: string) => {
+    switch (status) {
+      case "pending":
+        return { label: "Pending Review", icon: Clock, color: "text-warning", bgColor: "bg-warning/10 border-warning/20" };
+      case "approved":
+        return { label: "Approved", icon: CheckCircle, color: "text-success", bgColor: "bg-success/10 border-success/20" };
+      case "rejected":
+        return { label: "Rejected", icon: XCircle, color: "text-destructive", bgColor: "bg-destructive/10 border-destructive/20" };
+      default:
+        return { label: status, icon: Clock, color: "text-muted-foreground", bgColor: "bg-secondary" };
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -340,7 +446,7 @@ export default function Settings() {
         </Card>
 
         {/* Region & Language */}
-        <Card>
+        <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Globe size={20} />
@@ -396,6 +502,149 @@ export default function Settings() {
                 </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Account Access - Whitelist Request */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield size={20} />
+              Account Access
+            </CardTitle>
+            <CardDescription>
+              Manage your device access and request multi-device support
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Current Status */}
+            <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/30 border border-border/50">
+              <div className="flex items-center gap-3">
+                <Smartphone className="w-5 h-5 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">Device Status</p>
+                  <p className="text-sm text-muted-foreground">
+                    {userProfile?.device_id ? "Device bound to your account" : "No device bound yet"}
+                  </p>
+                </div>
+              </div>
+              {userProfile?.is_whitelisted ? (
+                <Badge className="bg-success/20 text-success border-success/30 gap-1">
+                  <Shield className="w-3 h-3" />
+                  Multi-Device Enabled
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="gap-1">
+                  <Smartphone className="w-3 h-3" />
+                  Single Device
+                </Badge>
+              )}
+            </div>
+
+            {/* Show request status or form */}
+            {userProfile?.is_whitelisted ? (
+              <div className="p-4 rounded-lg bg-success/10 border border-success/20">
+                <div className="flex items-center gap-2 text-success">
+                  <CheckCircle className="w-5 h-5" />
+                  <p className="font-medium">Multi-device access is enabled</p>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  You can access your account from multiple devices.
+                </p>
+              </div>
+            ) : whitelistRequest?.status === "pending" ? (
+              <div className="space-y-3">
+                <div className={`p-4 rounded-lg border ${getRequestStatusInfo("pending").bgColor}`}>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-warning" />
+                    <p className="font-medium text-warning">Request Pending</p>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Your multi-device access request is being reviewed by admin.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Submitted: {new Date(whitelistRequest.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            ) : whitelistRequest?.status === "rejected" ? (
+              <div className="space-y-4">
+                <div className={`p-4 rounded-lg border ${getRequestStatusInfo("rejected").bgColor}`}>
+                  <div className="flex items-center gap-2">
+                    <XCircle className="w-5 h-5 text-destructive" />
+                    <p className="font-medium text-destructive">Previous Request Rejected</p>
+                  </div>
+                  {whitelistRequest.admin_response && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Admin response: {whitelistRequest.admin_response}
+                    </p>
+                  )}
+                </div>
+                
+                {/* Allow re-submit */}
+                <div className="space-y-3">
+                  <Label htmlFor="requestReason">Submit New Request</Label>
+                  <Textarea
+                    id="requestReason"
+                    value={requestReason}
+                    onChange={(e) => setRequestReason(e.target.value)}
+                    placeholder="Explain why you need multi-device access (e.g., I work from both office and home)..."
+                    rows={3}
+                  />
+                  <Button 
+                    onClick={handleSubmitWhitelistRequest}
+                    disabled={isSubmittingRequest || !requestReason.trim()}
+                  >
+                    {isSubmittingRequest ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="w-4 h-4 mr-2" />
+                        Request Multi-Device Access
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="p-4 rounded-lg bg-muted/50 border border-border/50">
+                  <p className="text-sm text-muted-foreground">
+                    Your account is currently restricted to a single device. If you need to access 
+                    your account from multiple devices, you can request multi-device access from admin.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="requestReason">Reason for Request</Label>
+                  <Textarea
+                    id="requestReason"
+                    value={requestReason}
+                    onChange={(e) => setRequestReason(e.target.value)}
+                    placeholder="Explain why you need multi-device access (e.g., I work from both office and home)..."
+                    rows={3}
+                  />
+                </div>
+                <Button 
+                  onClick={handleSubmitWhitelistRequest}
+                  disabled={isSubmittingRequest || !requestReason.trim()}
+                >
+                  {isSubmittingRequest ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="w-4 h-4 mr-2" />
+                      Request Multi-Device Access
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
