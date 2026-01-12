@@ -17,10 +17,12 @@ import {
   RefreshCw,
   UserCheck,
   UserX,
+  Bell,
 } from "lucide-react";
 import { AdminUsers } from "@/components/admin/AdminUsers";
 import { AdminReports } from "@/components/admin/AdminReports";
 import { AdminSettings } from "@/components/admin/AdminSettings";
+import { AdminWhitelistRequests } from "@/components/admin/AdminWhitelistRequests";
 
 interface Stats {
   totalUsers: number;
@@ -28,6 +30,7 @@ interface Stats {
   disabledUsers: number;
   deviceBoundUsers: number;
   whitelistedUsers: number;
+  pendingRequests: number;
 }
 
 export default function AdminDashboard() {
@@ -38,6 +41,7 @@ export default function AdminDashboard() {
     disabledUsers: 0,
     deviceBoundUsers: 0,
     whitelistedUsers: 0,
+    pendingRequests: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -72,6 +76,12 @@ export default function AdminDashboard() {
         .from("profiles")
         .select("*");
 
+      // Fetch pending whitelist requests count
+      const { data: requests } = await supabase
+        .from("whitelist_requests")
+        .select("id")
+        .eq("status", "pending");
+
       if (profiles) {
         setStats({
           totalUsers: profiles.length,
@@ -79,6 +89,7 @@ export default function AdminDashboard() {
           disabledUsers: profiles.filter(p => p.status === 'disabled').length,
           deviceBoundUsers: profiles.filter(p => p.device_id).length,
           whitelistedUsers: profiles.filter(p => p.is_whitelisted).length,
+          pendingRequests: requests?.length || 0,
         });
       }
     } catch (error) {
@@ -150,10 +161,22 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 max-w-md">
+          <TabsList className="grid w-full grid-cols-4 max-w-lg">
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               <span className="hidden sm:inline">Users</span>
+            </TabsTrigger>
+            <TabsTrigger value="requests" className="flex items-center gap-2 relative">
+              <Bell className="w-4 h-4" />
+              <span className="hidden sm:inline">Requests</span>
+              {stats.pendingRequests > 0 && (
+                <Badge 
+                  variant="destructive" 
+                  className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs"
+                >
+                  {stats.pendingRequests}
+                </Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="reports" className="flex items-center gap-2">
               <FileText className="w-4 h-4" />
@@ -167,6 +190,10 @@ export default function AdminDashboard() {
 
           <TabsContent value="users">
             <AdminUsers onRefresh={fetchStats} />
+          </TabsContent>
+
+          <TabsContent value="requests">
+            <AdminWhitelistRequests onRefresh={fetchStats} />
           </TabsContent>
 
           <TabsContent value="reports">

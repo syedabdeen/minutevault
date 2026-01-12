@@ -274,6 +274,39 @@ export type Database = {
         }
         Relationships: []
       }
+      whitelist_requests: {
+        Row: {
+          admin_response: string | null
+          created_at: string
+          id: string
+          reason: string
+          responded_at: string | null
+          responded_by: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          admin_response?: string | null
+          created_at?: string
+          id?: string
+          reason: string
+          responded_at?: string | null
+          responded_by?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          admin_response?: string | null
+          created_at?: string
+          id?: string
+          reason?: string
+          responded_at?: string | null
+          responded_by?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
