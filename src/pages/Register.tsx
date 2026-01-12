@@ -11,6 +11,7 @@ import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
+import { getDeviceId } from "@/utils/deviceId";
 
 const registerSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters").max(100),
@@ -72,6 +73,26 @@ export default function Register() {
       }
 
       if (data.user) {
+        // Bind device immediately after registration
+        const deviceId = getDeviceId();
+        
+        try {
+          const { data: bindingResult, error: bindingError } = await supabase
+            .rpc('check_device_binding', {
+              _user_id: data.user.id,
+              _device_id: deviceId
+            });
+
+          if (bindingError) {
+            console.error("Device binding error:", bindingError);
+            // Don't block registration if binding fails, but log it
+          } else {
+            console.log("Device binding result:", bindingResult);
+          }
+        } catch (bindingErr) {
+          console.error("Device binding exception:", bindingErr);
+        }
+
         // Store user info for UI
         localStorage.setItem("mom_user", JSON.stringify({
           fullName: formData.fullName,
