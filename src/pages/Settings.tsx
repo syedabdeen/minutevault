@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -14,46 +14,143 @@ import {
   ImageIcon,
   FileText,
   Trash2,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+
+interface UserSettings {
+  company_name: string;
+  company_address: string;
+  company_phone: string;
+  company_email: string;
+  company_website: string;
+  company_logo_url: string;
+  region: string;
+  language: string;
+}
 
 export default function Settings() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [companyProfile, setCompanyProfile] = useState({
-    name: "Acme Corporation",
-    address: "123 Business Park, Suite 500\nNew York, NY 10001",
-    phone: "+1 (555) 123-4567",
-    email: "contact@acmecorp.com",
-    website: "www.acmecorp.com",
+    name: "",
+    address: "",
+    phone: "",
+    email: "",
+    website: "",
   });
-
-  const [region, setRegion] = useState("global");
-  const [language, setLanguage] = useState("en");
+  const [region, setRegion] = useState("India");
+  const [language, setLanguage] = useState("English");
   const [uploadedDocs, setUploadedDocs] = useState([
     { id: 1, name: "Company Policy Manual.pdf", size: "2.4 MB" },
     { id: 2, name: "Meeting Guidelines.docx", size: "156 KB" },
   ]);
 
-  const handleSave = () => {
-    toast.success("Settings saved successfully");
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("user_settings")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 = no rows found, which is fine for new users
+        throw error;
+      }
+
+      if (data) {
+        setCompanyProfile({
+          name: data.company_name || "",
+          address: data.company_address || "",
+          phone: data.company_phone || "",
+          email: data.company_email || "",
+          website: data.company_website || "",
+        });
+        setRegion(data.region || "India");
+        setLanguage(data.language || "English");
+      }
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+      toast.error("Failed to load settings");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("You must be logged in to save settings");
+        return;
+      }
+
+      const settingsData: Omit<UserSettings, "id"> & { user_id: string } = {
+        user_id: user.id,
+        company_name: companyProfile.name,
+        company_address: companyProfile.address,
+        company_phone: companyProfile.phone,
+        company_email: companyProfile.email,
+        company_website: companyProfile.website,
+        company_logo_url: "",
+        region,
+        language,
+      };
+
+      const { error } = await supabase
+        .from("user_settings")
+        .upsert(settingsData, {
+          onConflict: "user_id",
+        });
+
+      if (error) throw error;
+
+      toast.success("Settings saved successfully");
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      toast.error("Failed to save settings");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const regions = [
-    { value: "global", label: "Global" },
-    { value: "india", label: "India" },
-    { value: "uae", label: "UAE" },
-    { value: "ksa", label: "Saudi Arabia (KSA)" },
-    { value: "us", label: "United States" },
-    { value: "uk", label: "United Kingdom" },
+    { value: "Global", label: "Global" },
+    { value: "India", label: "India" },
+    { value: "UAE", label: "UAE" },
+    { value: "KSA", label: "Saudi Arabia (KSA)" },
+    { value: "US", label: "United States" },
+    { value: "UK", label: "United Kingdom" },
   ];
 
   const languages = [
-    { value: "en", label: "English" },
-    { value: "ar", label: "Arabic" },
-    { value: "hi", label: "Hindi" },
-    { value: "es", label: "Spanish" },
-    { value: "fr", label: "French" },
-    { value: "de", label: "German" },
+    { value: "English", label: "English" },
+    { value: "Arabic", label: "Arabic" },
+    { value: "Hindi", label: "Hindi" },
+    { value: "Spanish", label: "Spanish" },
+    { value: "French", label: "French" },
+    { value: "German", label: "German" },
   ];
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-full">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -66,9 +163,18 @@ export default function Settings() {
               Configure your company profile and preferences
             </p>
           </div>
-          <Button variant="gradient" onClick={handleSave}>
-            <Save size={18} />
-            Save All Changes
+          <Button variant="gradient" onClick={handleSave} disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save size={18} />
+                Save All Changes
+              </>
+            )}
           </Button>
         </div>
 
@@ -112,6 +218,7 @@ export default function Settings() {
                   onChange={(e) =>
                     setCompanyProfile({ ...companyProfile, name: e.target.value })
                   }
+                  placeholder="Enter company name"
                 />
               </div>
               <div className="space-y-2">
@@ -125,6 +232,7 @@ export default function Settings() {
                       website: e.target.value,
                     })
                   }
+                  placeholder="www.example.com"
                 />
               </div>
             </div>
@@ -141,6 +249,7 @@ export default function Settings() {
                   })
                 }
                 rows={2}
+                placeholder="Enter company address"
               />
             </div>
 
@@ -156,6 +265,7 @@ export default function Settings() {
                       phone: e.target.value,
                     })
                   }
+                  placeholder="+1 (555) 123-4567"
                 />
               </div>
               <div className="space-y-2">
@@ -170,6 +280,7 @@ export default function Settings() {
                       email: e.target.value,
                     })
                   }
+                  placeholder="contact@company.com"
                 />
               </div>
             </div>
