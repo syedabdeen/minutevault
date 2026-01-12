@@ -28,6 +28,7 @@ export type Database = {
           time: string
           title: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           action_items?: Json | null
@@ -42,6 +43,7 @@ export type Database = {
           time?: string
           title: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           action_items?: Json | null
@@ -56,6 +58,7 @@ export type Database = {
           time?: string
           title?: string
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -222,6 +225,51 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          company_address: string | null
+          company_email: string | null
+          company_logo_url: string | null
+          company_name: string | null
+          company_phone: string | null
+          company_website: string | null
+          created_at: string
+          id: string
+          language: string | null
+          region: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_address?: string | null
+          company_email?: string | null
+          company_logo_url?: string | null
+          company_name?: string | null
+          company_phone?: string | null
+          company_website?: string | null
+          created_at?: string
+          id?: string
+          language?: string | null
+          region?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_address?: string | null
+          company_email?: string | null
+          company_logo_url?: string | null
+          company_name?: string | null
+          company_phone?: string | null
+          company_website?: string | null
+          created_at?: string
+          id?: string
+          language?: string | null
+          region?: string | null
+          updated_at?: string
           user_id?: string
         }
         Relationships: []

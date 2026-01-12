@@ -115,6 +115,13 @@ export default function NewMeeting() {
     });
 
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("You must be logged in to save meetings");
+        return;
+      }
+
       // Format duration
       const hrs = Math.floor(recordingTime / 3600);
       const mins = Math.floor((recordingTime % 3600) / 60);
@@ -123,11 +130,12 @@ export default function NewMeeting() {
       if (mins > 0) durationStr += `${mins}min`;
       if (!durationStr) durationStr = "< 1 min";
 
-      // Save meeting to database
+      // Save meeting to database with user_id
       const { data: meeting, error: meetingError } = await supabase
         .from("meetings")
         .insert({
           title,
+          user_id: user.id,
           date: new Date().toISOString().split("T")[0],
           time: new Date().toTimeString().slice(0, 8),
           duration: durationStr.trim(),

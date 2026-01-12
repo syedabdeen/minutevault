@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
+import { supabase } from "@/integrations/supabase/client";
 
 interface LayoutProps {
   children: ReactNode;
@@ -128,10 +129,18 @@ export function Layout({ children }: LayoutProps) {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const handleLogout = () => {
-    localStorage.removeItem("mom_user");
-    toast.success("You have been logged out successfully");
-    navigate("/");
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      localStorage.removeItem("mom_user");
+      toast.success("You have been logged out successfully");
+      navigate("/");
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Still clear local state even if signOut fails
+      localStorage.removeItem("mom_user");
+      navigate("/");
+    }
   };
 
   const handleNavigation = (path: string) => {
