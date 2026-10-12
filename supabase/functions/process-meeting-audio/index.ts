@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { streamText, Output, APICallError } from "npm:ai@6";
+import { streamText, Output, APICallError, NoObjectGeneratedError } from "npm:ai@7.0.137";
 import { z } from "npm:zod@3";
 import { createLovableAiGatewayProvider, getLovableAiGatewayResponseHeaders } from "../_shared/gateway-helpers.ts";
 
@@ -75,7 +75,7 @@ Deno.serve(async req => {
       ] }],
     });
     const output = await result.output;
-    if (!output) return json({ error: "Audio analysis returned no usable result." }, 422);
+    if (!output) throw new Error("Audio analysis returned no usable result.");
     const normalized = {
       ...output,
       actionItems: output.actionItems.map(item => ({ ...item, status: "pending" })),
@@ -91,7 +91,9 @@ Deno.serve(async req => {
     return json(normalized, 200, headers);
   } catch (error) {
     let status = 500, message = error instanceof Error ? error.message : "Audio processing failed.";
-    if (APICallError.isInstance(error)) {
+    if (NoObjectGeneratedError.isInstance(error)) {
+      status = 422; message = "Audio analysis returned an invalid result. Your audio is saved; review it before starting another analysis.";
+    } else if (APICallError.isInstance(error)) {
       status = error.statusCode || 500;
       message = safeMessage(error.responseBody || "", message);
       console.error("Audio gateway failure", status, error.responseBody);

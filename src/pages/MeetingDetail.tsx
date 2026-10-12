@@ -684,7 +684,7 @@ ${(actionItems || []).map(a => `• ${a.task} — ${a.responsible} (${a.dueDate}
                       className={`flex gap-3 p-4 rounded-lg transition-colors ${entry.start_seconds != null && audioTime >= entry.start_seconds && audioTime < (entry.end_seconds ?? entry.start_seconds + 5) ? "bg-accent/15 ring-1 ring-accent/40" : "bg-secondary/30 hover:bg-secondary/50"}`}
                     >
                       <div className="w-16 pt-1 text-xs font-mono tabular-nums text-muted-foreground">
-                        {entry.start_seconds != null && audioParts.length ? <button className="text-accent underline underline-offset-4 p-1" aria-label={`Play transcript at ${Math.floor(entry.start_seconds)} seconds`} onClick={() => audioRef.current?.seek(entry.start_seconds!)}>{Math.floor(entry.start_seconds / 60).toString().padStart(2, "0")}:{Math.floor(entry.start_seconds % 60).toString().padStart(2, "0")}</button> : baseTs ? formatTranscriptOffset(baseTs, entry.timestamp) : ""}
+                        {entry.start_seconds != null && audioParts.length ? <button className="text-accent underline underline-offset-4 p-1" aria-label={`Play transcript at ${Math.floor(entry.start_seconds)} seconds`} onClick={() => { if (entry.start_seconds != null) audioRef.current?.seek(entry.start_seconds); }}>{Math.floor(entry.start_seconds / 60).toString().padStart(2, "0")}:{Math.floor(entry.start_seconds % 60).toString().padStart(2, "0")}</button> : baseTs ? formatTranscriptOffset(baseTs, entry.timestamp) : ""}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
