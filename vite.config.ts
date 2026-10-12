@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
+import icon192 from "./src/assets/icon-192.png.asset.json";
+import icon512 from "./src/assets/icon-512.png.asset.json";
+import appleIcon from "./src/assets/apple-touch-icon.png.asset.json";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -15,7 +18,7 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.png", "apple-touch-icon.png"],
+      includeAssets: ["favicon.png", "favicon.ico"],
       manifest: {
         name: "MinuteVault - Secure Meeting Minutes",
         short_name: "MinuteVault",
@@ -27,20 +30,20 @@ export default defineConfig(({ mode }) => ({
         start_url: "/",
         icons: [
           {
-            src: "/favicon.png",
+            src: icon192.url,
             sizes: "192x192",
             type: "image/png",
           },
           {
-            src: "/favicon.png",
+            src: icon512.url,
             sizes: "512x512",
             type: "image/png",
           },
           {
-            src: "/favicon.png",
-            sizes: "512x512",
+            src: appleIcon.url,
+            sizes: "180x180",
             type: "image/png",
-            purpose: "any maskable",
+            purpose: "any",
           },
         ],
       },
