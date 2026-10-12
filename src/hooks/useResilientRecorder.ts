@@ -53,9 +53,12 @@ export function useResilientRecorder() {
     setRecording(false);
     nodeRef.current?.disconnect(); sourceRef.current?.disconnect();
     streamRef.current?.getTracks().forEach(track => track.stop());
-    flush(); await writeRef.current;
-    await contextRef.current?.close(); contextRef.current = undefined;
-    await wakeRef.current?.release(); wakeRef.current = undefined;
+    flush();
+    try { await writeRef.current; } finally {
+      await contextRef.current?.close(); contextRef.current = undefined;
+      try { await wakeRef.current?.release(); } catch { /* The browser may already have released it. */ }
+      wakeRef.current = undefined;
+    }
     setLevel(0);
     const draft = draftRef.current;
     if (!draft) return null;

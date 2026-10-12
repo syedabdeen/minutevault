@@ -23,6 +23,7 @@ import { AdminUsers } from "@/components/admin/AdminUsers";
 import { AdminReports } from "@/components/admin/AdminReports";
 import { AdminSettings } from "@/components/admin/AdminSettings";
 import { AdminWhitelistRequests } from "@/components/admin/AdminWhitelistRequests";
+import { AdminAudioAvailability } from "@/components/admin/AdminAudioAvailability";
 
 interface Stats {
   totalUsers: number;
@@ -132,6 +133,7 @@ export default function AdminDashboard() {
       </header>
 
       <div className="p-6 max-w-7xl mx-auto">
+        <AdminAudioAvailability />
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
           {statCards.map((stat) => (

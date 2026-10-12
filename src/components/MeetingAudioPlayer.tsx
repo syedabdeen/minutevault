@@ -31,7 +31,7 @@ export const MeetingAudioPlayer = forwardRef<MeetingAudioHandle, { parts: AudioP
     if (!container.current || !part) return;
     let disposed = false;
     setReady(false); setPlaying(false); setError(null);
-    const player = WaveSurfer.create({ container: container.current, height: 72, waveColor: "#64748b", progressColor: "#22d3ee", cursorColor: "#22d3ee", barWidth: 3, barGap: 2, normalize: true });
+    const player = WaveSurfer.create({ container: container.current, height: 72, waveColor: `hsl(${getComputedStyle(document.documentElement).getPropertyValue("--muted-foreground")})`, progressColor: `hsl(${getComputedStyle(document.documentElement).getPropertyValue("--accent")})`, cursorColor: `hsl(${getComputedStyle(document.documentElement).getPropertyValue("--accent")})`, barWidth: 3, barGap: 2, normalize: true });
     wave.current = player;
     player.on("timeupdate", time => { setPosition(part.offset + time); onTimeRef.current(part.offset + time); });
     player.on("play", () => setPlaying(true)); player.on("pause", () => setPlaying(false));

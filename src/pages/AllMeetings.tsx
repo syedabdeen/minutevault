@@ -200,8 +200,8 @@ export default function AllMeetings() {
                   </div>
 
                   <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
-                    <span className="text-xs px-2 py-1 rounded-full bg-success/20 text-success">
-                      Completed
+                    <span className={`text-xs px-2 py-1 rounded-full ${meeting.status === "completed" ? "bg-success/20 text-success" : "bg-warning/20 text-warning"}`}>
+                      {meeting.status === "completed" ? "Completed" : meeting.status === "failed" ? "Needs attention" : "Processing"}
                     </span>
                     <ChevronRight
                       size={18}
