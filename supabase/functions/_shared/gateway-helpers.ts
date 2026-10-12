@@ -1,4 +1,4 @@
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@2";
+import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@3";
 
 import { createLovableAiGatewayRunIdFetch } from "./run-id.ts";
 export {
