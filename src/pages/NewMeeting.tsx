@@ -1,429 +1,103 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Mic,
-  Square,
-  Users,
-  AlertCircle,
-  CheckCircle,
-  Loader2,
-  MicOff,
-} from "lucide-react";
+import { Mic, Square, Upload, ShieldCheck, AlertCircle, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { useAudioRecording } from "@/hooks/useAudioRecording";
+import { useResilientRecorder } from "@/hooks/useResilientRecorder";
 import { supabase } from "@/integrations/supabase/client";
+import { listDrafts, discardDraft, importAudio, type RecordingDraft } from "@/lib/recordingStore";
+import { saveAndProcessDraft } from "@/lib/meetingAudio";
 
 export default function NewMeeting() {
   const navigate = useNavigate();
+  const recorder = useResilientRecorder();
+  const [mode, setMode] = useState<"record" | "upload">("record");
   const [title, setTitle] = useState("New Meeting");
-  const [participantNames, setParticipantNames] = useState("");
-  const [recordingTime, setRecordingTime] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [waveformHeights, setWaveformHeights] = useState<number[]>(
-    Array(20).fill(20)
-  );
-
-  const {
-    isConnecting,
-    isConnected,
-    transcripts,
-    partialText,
-    speakersDetected,
-    error,
-    startRecording,
-    stopRecording,
-    getFullTranscript,
-  } = useAudioRecording();
-
-  const formatTime = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hrs.toString().padStart(2, "0")}:${mins
-      .toString()
-      .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  const [participants, setParticipants] = useState("");
+  const [meetingType, setMeetingType] = useState("corporate");
+  const [date, setDate] = useState(new Date().toLocaleDateString("en-CA"));
+  const [time, setTime] = useState(new Date().toTimeString().slice(0, 5));
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [failure, setFailure] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<RecordingDraft[]>([]);
+  const loadDrafts = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) setDrafts(await listDrafts(user.id));
   };
-
-  // Waveform animation
+  useEffect(() => { void loadDrafts().catch(() => setFailure("Local recording recovery is unavailable on this device.")); }, []);
   useEffect(() => {
-    if (isConnected) {
-      const interval = setInterval(() => {
-        setWaveformHeights(
-          Array(20)
-            .fill(0)
-            .map(() => Math.random() * 100)
-        );
-      }, 100);
-      return () => clearInterval(interval);
-    } else {
-      setWaveformHeights(Array(20).fill(20));
-    }
-  }, [isConnected]);
-
-  // Timer
-  useEffect(() => {
-    if (isConnected) {
-      timerRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
-      }, 1000);
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    }
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [isConnected]);
-
-  // Show error toast
-  useEffect(() => {
-    if (error) {
-      toast.error("Recording Error", { description: error });
-    }
-  }, [error]);
-
-  const handleStart = async () => {
-    toast.info("Starting recording...", {
-      description: "Please allow microphone access when prompted",
-    });
-
-    const success = await startRecording();
-    if (success) {
-      toast.success("Recording started", {
-        description: "Speak clearly for best transcription results",
-      });
-    }
+    if (!busy) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [busy]);
+  const makeDraft = async (): Promise<RecordingDraft> => {
+    if (!title.trim()) throw new Error("Please enter a meeting title.");
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Please sign in to record a meeting.");
+    return { id: crypto.randomUUID(), userId: user.id, title: title.trim(), participants: participants.trim(), meetingType, date, time, createdAt: Date.now(), duration: 0, state: "recording" };
   };
-
-  const handleStop = async () => {
-    const finalTranscripts = await stopRecording();
-
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-
-    toast.success("Recording stopped", {
-      description: "Saving meeting to database...",
-    });
-
+  const process = async (id: string) => {
+    const meetingId = await saveAndProcessDraft(id, setProgress);
+    toast.success("Meeting saved and analyzed"); navigate(`/meeting/${meetingId}`);
+  };
+  const recover = async (id: string) => {
+    setBusy(true); setFailure(null);
+    try { await process(id); }
+    catch (error) { setFailure(error instanceof Error ? error.message : "Could not save recording."); }
+    finally { setBusy(false); setProgress(""); await loadDrafts(); }
+  };
+  const start = async () => {
+    setFailure(null);
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error("You must be logged in to save meetings");
-        return;
-      }
-
-      // Format duration
-      const hrs = Math.floor(recordingTime / 3600);
-      const mins = Math.floor((recordingTime % 3600) / 60);
-      let durationStr = "";
-      if (hrs > 0) durationStr += `${hrs}h `;
-      if (mins > 0) durationStr += `${mins}min`;
-      if (!durationStr) durationStr = "< 1 min";
-
-      // Save meeting to database with user_id
-      const { data: meeting, error: meetingError } = await supabase
-        .from("meetings")
-        .insert({
-          title,
-          user_id: user.id,
-          date: new Date().toISOString().split("T")[0],
-          time: new Date().toTimeString().slice(0, 8),
-          duration: durationStr.trim(),
-          speakers: speakersDetected,
-          status: "completed",
-          participant_names: participantNames.trim() || null,
-        })
-        .select()
-        .single();
-
-      if (meetingError) throw meetingError;
-
-      // Save transcripts to database
-      if (finalTranscripts.length > 0) {
-        const recordingStartedMs = Date.now() - recordingTime * 1000;
-
-        const transcriptInserts = finalTranscripts.map((t) => ({
-          meeting_id: meeting.id,
-          speaker: t.speaker,
-          content: t.text,
-          timestamp: new Date(recordingStartedMs + t.timestamp).toISOString(),
-        }));
-
-        const { error: transcriptError } = await supabase
-          .from("transcripts")
-          .insert(transcriptInserts);
-
-        if (transcriptError) throw transcriptError;
-      }
-
-      toast.success("Meeting saved successfully!");
-
-      // Navigate to meeting detail
-      navigate(`/meeting/${meeting.id}`);
-    } catch (error) {
-      console.error("Error saving meeting:", error);
-      toast.error("Failed to save meeting", {
-        description: "Please try again",
-      });
-    }
+      if (await recorder.start(await makeDraft())) toast.success("Recording started — local backup enabled");
+    } catch (error) { setFailure(error instanceof Error ? error.message : "Could not start recording."); }
   };
-
-  return (
-    <Layout>
-      <div className="p-8 max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">New Meeting</h1>
-          <p className="text-muted-foreground mt-1">
-            Start recording to capture and transcribe your meeting
-          </p>
-        </div>
-
-        {/* Meeting Setup */}
-        {!isConnected && !isConnecting && (
-          <Card className="mb-8 fade-in">
-            <CardHeader>
-              <CardTitle>Meeting Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Meeting Title *</Label>
-                <Input
-                  id="title"
-                  placeholder="e.g., Weekly Team Standup"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="participants">
-                  Participant Names{" "}
-                  <span className="text-muted-foreground font-normal">
-                    (optional, comma-separated)
-                  </span>
-                </Label>
-                <Input
-                  id="participants"
-                  placeholder="e.g., John Doe, Jane Smith, Mike Johnson"
-                  value={participantNames}
-                  onChange={(e) => setParticipantNames(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  If left empty, speakers will be labeled as Speaker 1, Speaker
-                  2, etc.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="date">Date</Label>
-                  <Input
-                    id="date"
-                    type="date"
-                    defaultValue={new Date().toISOString().split("T")[0]}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="time">Time</Label>
-                  <Input
-                    id="time"
-                    type="time"
-                    defaultValue={new Date().toTimeString().slice(0, 5)}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Recording Interface */}
-        <Card
-          className={`transition-all duration-500 ${
-            isConnected
-              ? "border-destructive/50 shadow-[0_0_40px_hsl(0_72%_51%/0.2)]"
-              : ""
-          }`}
-        >
-          <CardContent className="p-8">
-            <div className="flex flex-col items-center">
-              {/* Recording Status */}
-              <div className="mb-8 text-center">
-                {isConnecting ? (
-                  <div className="flex items-center gap-2 text-accent">
-                    <Loader2 size={20} className="animate-spin" />
-                    <span className="text-sm font-medium">
-                      Connecting to transcription service...
-                    </span>
-                  </div>
-                ) : isConnected ? (
-                  <>
-                    <div className="flex items-center gap-2 text-destructive mb-2">
-                      <div className="w-3 h-3 rounded-full bg-destructive recording-pulse" />
-                      <span className="text-sm font-medium uppercase tracking-wider">
-                        Recording in Progress
-                      </span>
-                    </div>
-                    <h2 className="text-2xl font-semibold">{title}</h2>
-                  </>
-                ) : (
-                  <h2 className="text-xl text-muted-foreground">
-                    Ready to record
-                  </h2>
-                )}
-              </div>
-
-              {/* Timer */}
-              <div className="text-6xl font-mono font-bold mb-8 tabular-nums">
-                {formatTime(recordingTime)}
-              </div>
-
-              {/* Waveform */}
-              <div className="w-full max-w-md mb-8">
-                <div className="flex items-end justify-center gap-1 h-16">
-                  {waveformHeights.map((height, i) => (
-                    <div
-                      key={i}
-                      className="w-1.5 bg-gradient-to-t from-accent to-accent/60 rounded-full transition-all duration-100"
-                      style={{
-                        height: `${Math.max(height, 8)}%`,
-                        minHeight: "8px",
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Live Transcript Preview */}
-              {isConnected && (transcripts.length > 0 || partialText) && (
-                <div className="w-full max-w-2xl mb-8 p-4 rounded-lg bg-secondary/30 border border-border">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Mic size={16} className="text-accent" />
-                    <span className="text-sm font-medium text-muted-foreground">
-                      Live Transcript
-                    </span>
-                  </div>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {transcripts.slice(-5).map((t) => (
-                      <div key={t.id} className="text-sm">
-                        <span className="text-accent font-medium">
-                          {t.speaker}:
-                        </span>{" "}
-                        <span className="text-foreground">{t.text}</span>
-                      </div>
-                    ))}
-                    {partialText && (
-                      <div className="text-sm text-muted-foreground italic">
-                        {partialText}...
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Stats */}
-              {isConnected && (
-                <div className="flex items-center gap-8 mb-8 fade-in">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Users size={18} className="text-accent" />
-                    <span>
-                      {speakersDetected} speaker
-                      {speakersDetected !== 1 ? "s" : ""} detected
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-success">
-                    <CheckCircle size={18} />
-                    <span>Transcribing live</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Controls */}
-              <div className="flex items-center gap-4">
-                {isConnecting ? (
-                  <Button variant="outline" size="xl" disabled className="min-w-[200px]">
-                    <Loader2 size={24} className="animate-spin" />
-                    Connecting...
-                  </Button>
-                ) : !isConnected ? (
-                  <Button
-                    variant="gradient"
-                    size="xl"
-                    onClick={handleStart}
-                    className="min-w-[200px]"
-                  >
-                    <Mic size={24} />
-                    Start Recording
-                  </Button>
-                ) : (
-                  <Button
-                    variant="recording"
-                    size="xl"
-                    onClick={handleStop}
-                    className="min-w-[200px]"
-                  >
-                    <Square size={20} className="fill-current" />
-                    Stop Recording
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Tips */}
-        {!isConnected && !isConnecting && (
-          <Card className="mt-8 bg-accent/5 border-accent/20">
-            <CardContent className="p-6">
-              <div className="flex gap-4">
-                <AlertCircle size={24} className="text-accent flex-shrink-0" />
-                <div>
-                  <h3 className="font-semibold mb-2">Tips for Best Results</h3>
-                  <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>• Ensure you're in a quiet environment</li>
-                    <li>• Ask participants to speak clearly and one at a time</li>
-                    <li>
-                      • Speakers can introduce themselves for better identification
-                    </li>
-                    <li>• Position the microphone centrally for group meetings</li>
-                    <li>• Grant microphone permission when prompted</li>
-                  </ul>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Microphone Permission Error */}
-        {error && (
-          <Card className="mt-8 bg-destructive/5 border-destructive/20">
-            <CardContent className="p-6">
-              <div className="flex gap-4">
-                <MicOff size={24} className="text-destructive flex-shrink-0" />
-                <div>
-                  <h3 className="font-semibold mb-2 text-destructive">
-                    Microphone Access Required
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {error}. Please check your browser settings and allow
-                    microphone access for this site.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </Layout>
-  );
+  const stop = async () => {
+    setBusy(true); setFailure(null); setProgress("Saving your local backup…");
+    try { const draft = await recorder.stop(); if (draft) await process(draft.id); }
+    catch (error) { setFailure(error instanceof Error ? error.message : "Could not save recording."); }
+    finally { setBusy(false); setProgress(""); await loadDrafts(); }
+  };
+  const upload = async () => {
+    if (!file) return;
+    setBusy(true); setFailure(null); setProgress("Preparing audio on this device…");
+    try {
+      const draft = await makeDraft(); await importAudio(file, draft); await process(draft.id);
+    } catch (error) { setFailure(error instanceof Error ? error.message : "This audio file could not be processed."); }
+    finally { setBusy(false); setProgress(""); await loadDrafts(); }
+  };
+  const seconds = Math.floor(recorder.duration);
+  const formatted = `${Math.floor(seconds / 3600).toString().padStart(2, "0")}:${Math.floor(seconds / 60 % 60).toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
+  const locked = recorder.isRecording || recorder.isStarting || busy;
+  return <Layout><div className="p-4 sm:p-8 max-w-4xl mx-auto space-y-6">
+    <div><h1 className="text-3xl font-bold">New Meeting</h1><p className="text-muted-foreground mt-1">Record locally or upload audio. Get a transcript, decisions and action items after recording.</p></div>
+    {!locked && drafts.length > 0 && <Card className="border-warning/40"><CardHeader><CardTitle className="text-lg flex items-center gap-2"><RotateCcw size={20} /> Recover unsaved recordings</CardTitle></CardHeader><CardContent className="space-y-3">
+      {drafts.map(draft => <div key={draft.id} className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">{draft.title}</p><p className="text-xs text-muted-foreground">{Math.floor(draft.duration / 60)} min · {new Date(draft.createdAt).toLocaleString()}</p></div><div className="flex gap-2"><Button size="sm" onClick={() => recover(draft.id)}>Recover & analyze</Button><Button size="icon" variant="ghost" aria-label={`Delete local backup for ${draft.title}`} onClick={async () => { if (window.confirm("Permanently delete this local recording backup?")) { await discardDraft(draft.id); await loadDrafts(); } }}><Trash2 size={16} /></Button></div></div>)}
+    </CardContent></Card>}
+    {!locked && <Card><CardHeader><CardTitle>Meeting Details</CardTitle></CardHeader><CardContent className="space-y-4">
+      <div className="grid grid-cols-2 gap-2"><Button variant={mode === "record" ? "default" : "outline"} onClick={() => setMode("record")}><Mic size={18} /> Record</Button><Button variant={mode === "upload" ? "default" : "outline"} onClick={() => setMode("upload")}><Upload size={18} /> Upload audio</Button></div>
+      <div className="space-y-2"><Label htmlFor="title">Meeting Title *</Label><Input id="title" value={title} onChange={e => setTitle(e.target.value)} maxLength={200} /></div>
+      <div className="space-y-2"><Label htmlFor="participants">Participant names (optional)</Label><Input id="participants" value={participants} onChange={e => setParticipants(e.target.value)} placeholder="Names, separated by commas" maxLength={1000} /><p className="text-xs text-muted-foreground">Names are context, not assumed speaker identities. Uncertain speakers remain anonymous.</p></div>
+      <div className="space-y-2"><Label htmlFor="meeting-type">Meeting type</Label><select id="meeting-type" value={meetingType} onChange={e => setMeetingType(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="corporate">Business meeting</option><option value="interview">Interview</option><option value="lecture">Lecture / learning</option><option value="personal">Personal voice note</option></select></div>
+      <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label htmlFor="date">Date</Label><Input id="date" type="date" value={date} onChange={e => setDate(e.target.value)} /></div><div className="space-y-2"><Label htmlFor="time">Time</Label><Input id="time" type="time" value={time} onChange={e => setTime(e.target.value)} /></div></div>
+      {mode === "upload" && <div className="space-y-2"><Label htmlFor="audio-file">Audio file</Label><Input id="audio-file" type="file" accept=".mp3,.m4a,.wav,.webm,.ogg,.aac,.flac,audio/*" onChange={e => setFile(e.target.files?.[0] || null)} /><p className="text-xs text-muted-foreground">MP3, M4A, WAV, WebM and other device-supported formats · maximum 50 MB. Large files may require a desktop.</p></div>}
+    </CardContent></Card>}
+    <Card className={recorder.isRecording ? "border-destructive/50" : ""}><CardContent className="p-6 sm:p-8 flex flex-col items-center text-center gap-6">
+      {busy ? <><Loader2 size={32} className="animate-spin text-accent" /><p role="status" className="font-medium">{progress || "Processing…"}</p><p className="text-sm text-muted-foreground">Keep this screen open. Your audio backup stays on this device until everything is saved.</p></> : <>
+        <p className={recorder.isRecording ? "text-destructive font-medium" : "text-muted-foreground"}>{recorder.isRecording ? "● Recording in progress" : recorder.isStarting ? "Requesting microphone access…" : mode === "record" ? "Ready to record" : file?.name || "Choose an audio file"}</p>
+        {mode === "record" && <><div className="text-4xl sm:text-6xl font-mono font-bold tabular-nums">{formatted}</div><div className="flex items-center justify-center gap-1 h-16 w-full" aria-label="Microphone input level">{Array.from({ length: 24 }, (_, i) => <div key={i} className="w-1.5 bg-accent rounded-full transition-all duration-150" style={{ height: `${Math.max(6, recorder.level * 64 * (0.4 + 0.6 * Math.sin((i + 1) / 25 * Math.PI)))}px` }} />)}</div></>}
+        {recorder.interrupted && <div className="rounded-lg bg-warning/10 p-4 text-sm">Recording may have been interrupted. Keep the app visible and screen unlocked.<Button variant="outline" size="sm" className="mt-2" onClick={recorder.resume}>Resume microphone</Button></div>}
+        {mode === "record" ? recorder.isRecording ? <Button variant="recording" size="xl" onClick={stop}><Square size={20} /> Stop & analyze</Button> : <Button variant="gradient" size="xl" disabled={recorder.isStarting} onClick={start}><Mic size={22} /> {recorder.isStarting ? "Starting…" : "Start Recording"}</Button> : <Button variant="gradient" size="xl" disabled={!file} onClick={upload}><Upload size={20} /> Upload & analyze</Button>}
+      </>}
+    </CardContent></Card>
+    {(failure || recorder.error) && <div role="alert" className="p-4 rounded-lg border border-destructive/30 bg-destructive/5 text-sm flex gap-3"><AlertCircle className="shrink-0 text-destructive" size={20} /><p>{failure || recorder.error}</p></div>}
+    <Card className="bg-accent/5 border-accent/20"><CardContent className="p-5 flex gap-3"><ShieldCheck size={24} className="text-accent shrink-0" /><div className="text-sm space-y-2"><p className="font-semibold">Local backup. Private cloud storage.</p><p className="text-muted-foreground">Microphone audio is backed up about every three seconds. AI analysis runs after saving, not through a live paid connection. Obtain participant consent before recording.</p><p className="text-muted-foreground">Mobile browsers cannot guarantee recording while locked or backgrounded. Keep this screen visible; a screen wake lock is requested where supported. Speaker labels and timestamps are AI estimates—review important decisions.</p></div></CardContent></Card>
+  </div></Layout>;
 }

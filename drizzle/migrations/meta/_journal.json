@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791782382125,
+      "tag": "0000_meeting_audio_pipeline",
+      "breakpoints": true
+    }
+  ]
+}

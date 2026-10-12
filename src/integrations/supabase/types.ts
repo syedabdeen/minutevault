@@ -14,14 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      meeting_ai_access: {
+        Row: {
+          blocked: boolean
+          id: string
+          message: string | null
+          status_code: number | null
+          updated_at: string
+        }
+        Insert: {
+          blocked?: boolean
+          id?: string
+          message?: string | null
+          status_code?: number | null
+          updated_at?: string
+        }
+        Update: {
+          blocked?: boolean
+          id?: string
+          message?: string | null
+          status_code?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      meeting_audio_segments: {
+        Row: {
+          created_at: string
+          duration_seconds: number
+          error: string | null
+          id: string
+          meeting_id: string
+          offset_seconds: number
+          result: Json | null
+          segment_index: number
+          status: string
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds: number
+          error?: string | null
+          id?: string
+          meeting_id: string
+          offset_seconds?: number
+          result?: Json | null
+          segment_index: number
+          status?: string
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number
+          error?: string | null
+          id?: string
+          meeting_id?: string
+          offset_seconds?: number
+          result?: Json | null
+          segment_index?: number
+          status?: string
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_audio_segments_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meetings: {
         Row: {
           action_items: Json | null
+          audio_duration_seconds: number | null
+          audio_parts: Json | null
+          audio_url: string | null
           created_at: string
           date: string
           duration: string | null
           id: string
+          meeting_type: string | null
           participant_names: string | null
+          processing_error: string | null
           speakers: number | null
           status: string
           summary: string | null
@@ -32,11 +111,16 @@ export type Database = {
         }
         Insert: {
           action_items?: Json | null
+          audio_duration_seconds?: number | null
+          audio_parts?: Json | null
+          audio_url?: string | null
           created_at?: string
           date?: string
           duration?: string | null
           id?: string
+          meeting_type?: string | null
           participant_names?: string | null
+          processing_error?: string | null
           speakers?: number | null
           status?: string
           summary?: string | null
@@ -47,11 +131,16 @@ export type Database = {
         }
         Update: {
           action_items?: Json | null
+          audio_duration_seconds?: number | null
+          audio_parts?: Json | null
+          audio_url?: string | null
           created_at?: string
           date?: string
           duration?: string | null
           id?: string
+          meeting_type?: string | null
           participant_names?: string | null
+          processing_error?: string | null
           speakers?: number | null
           status?: string
           summary?: string | null
@@ -177,25 +266,31 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          end_seconds: number | null
           id: string
           meeting_id: string
           speaker: string
+          start_seconds: number | null
           timestamp: string
         }
         Insert: {
           content: string
           created_at?: string
+          end_seconds?: number | null
           id?: string
           meeting_id: string
           speaker: string
+          start_seconds?: number | null
           timestamp?: string
         }
         Update: {
           content?: string
           created_at?: string
+          end_seconds?: number | null
           id?: string
           meeting_id?: string
           speaker?: string
+          start_seconds?: number | null
           timestamp?: string
         }
         Relationships: [
