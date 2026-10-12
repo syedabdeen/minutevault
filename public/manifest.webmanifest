@@ -1,0 +1,14 @@
+{
+  "name": "MinuteVault - Secure Meeting Minutes",
+  "short_name": "MinuteVault",
+  "description": "AI-powered meeting recording and transcription for professional Minutes of Meeting documents",
+  "theme_color": "#0B3C5D",
+  "background_color": "#0B3C5D",
+  "display": "standalone",
+  "orientation": "portrait",
+  "start_url": "/",
+  "icons": [
+    { "src": "/__l5e/assets-v1/3ba7062c-feb3-46ef-9d25-b897a8d399fb/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/__l5e/assets-v1/8e5c3e4a-bf7b-49f6-b725-70ee13d8ff30/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
