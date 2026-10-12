@@ -78,8 +78,9 @@ export function encodeWav(chunks: readonly Float32Array[], sampleRate = 16000): 
 export async function materializeDraft(id: string) {
   const db = await database();
   const existing = await db.getAllFromIndex("files", "draft", id);
-  if (existing.length) return existing.sort((a, b) => a.index - b.index);
   const keys = await db.getAllKeysFromIndex("chunks", "draft", id);
+  if (!keys.length) return existing.sort((a, b) => a.index - b.index);
+  // Rebuild all PCM parts after interrupted conversion; partial files are not a complete draft.
   let chunks: Float32Array[] = [], samples = 0, index = 0, offset = 0;
   const flush = async () => {
     if (!samples) return;
