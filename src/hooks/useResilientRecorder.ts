@@ -72,19 +72,34 @@ export function useResilientRecorder() {
     setStarting(true); setError(null); setInterrupted(false);
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("Microphone recording is unavailable on this device or connection.");
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+      // iOS Safari: create and resume the audio engine inside the tap, before any await.
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const context = new Ctx(); contextRef.current = context;
+      const resuming = context.resume().catch(() => {});
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+      } catch (e) {
+        const name = (e as DOMException)?.name;
+        throw new Error(name === "NotAllowedError" || name === "SecurityError"
+          ? "Microphone permission was denied. On iPhone open Settings › Safari › Microphone and choose Allow, then try again."
+          : name === "NotFoundError" ? "No microphone was found on this device." : "The microphone could not be started. Close other apps using it and try again.");
+      }
       streamRef.current = stream;
-      const context = new AudioContext(); contextRef.current = context;
-      await context.resume(); await saveDraft(draft); draftRef.current = draft;
+      await resuming; if (context.state !== "running") await context.resume().catch(() => {});
+      await saveDraft(draft); draftRef.current = draft;
       pendingRef.current = []; sampleCountRef.current = 0; indexRef.current = 0; writeRef.current = Promise.resolve();
       setDuration(0);
       const source = context.createMediaStreamSource(stream); sourceRef.current = source;
       if (context.audioWorklet) {
-        await context.audioWorklet.addModule("/pcm-recorder.js");
-        const node = new AudioWorkletNode(context, "pcm-recorder");
-        node.port.onmessage = event => receive(event.data as Float32Array, context.sampleRate);
-        nodeRef.current = node;
-      } else {
+        try {
+          await context.audioWorklet.addModule("/pcm-recorder.js");
+          const node = new AudioWorkletNode(context, "pcm-recorder");
+          node.port.onmessage = event => receive(event.data as Float32Array, context.sampleRate);
+          nodeRef.current = node;
+        } catch { nodeRef.current = undefined; }
+      }
+      if (!nodeRef.current) {
         const node = context.createScriptProcessor(4096, 1, 1);
         node.onaudioprocess = event => receive(new Float32Array(event.inputBuffer.getChannelData(0)), context.sampleRate);
         nodeRef.current = node;
