@@ -5,7 +5,7 @@ import { z } from "npm:zod@3";
 import { createLovableAiGatewayProvider, getLovableAiGatewayResponseHeaders } from "../_shared/gateway-helpers.ts";
 
 const bodySchema = z.object({
-  meetingId: z.string().uuid(), segmentIndex: z.number().int().nonnegative(),
+  meetingId: z.string().uuid().optional(), segmentIndex: z.number().int().nonnegative().optional(),
   resumeAccess: z.boolean().optional(),
 });
 const resultSchema = z.object({
@@ -36,6 +36,13 @@ Deno.serve(async req => {
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return json({ error: "Invalid meeting audio request." }, 400);
     const { meetingId, segmentIndex, resumeAccess } = parsed.data;
+    if (resumeAccess && !meetingId) {
+      const { data: isAdmin } = await client.rpc("has_role", { _user_id: user.id, _role: "admin" });
+      if (!isAdmin) return json({ error: "Administrator access required." }, 403);
+      const { error } = await admin.from("meeting_ai_access").update({ blocked: false, updated_at: new Date().toISOString() }).eq("id", "audio");
+      return error ? json({ error: "Could not resume audio analysis." }, 500) : json({ resumed: true });
+    }
+    if (!meetingId || segmentIndex == null) return json({ error: "Meeting and segment are required." }, 400);
     const { data: profile } = await client.from("profiles").select("status").eq("id", user.id).single();
     if (profile?.status === "disabled") return json({ error: "Your account is disabled." }, 403);
     const { data: meeting, error: meetingError } = await client.from("meetings").select("*").eq("id", meetingId).eq("user_id", user.id).single();

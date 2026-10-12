@@ -11,6 +11,7 @@ export interface RecordingDraft {
   createdAt: number;
   duration: number;
   meetingId?: string;
+  materialized?: boolean;
   state: "recording" | "ready";
 }
 interface RecordingDB extends DBSchema {
@@ -77,9 +78,11 @@ export function encodeWav(chunks: readonly Float32Array[], sampleRate = 16000): 
 }
 export async function materializeDraft(id: string) {
   const db = await database();
+  const draft = await db.get("drafts", id);
   const existing = await db.getAllFromIndex("files", "draft", id);
   const keys = await db.getAllKeysFromIndex("chunks", "draft", id);
-  if (!keys.length) return existing.sort((a, b) => a.index - b.index);
+  if (draft?.materialized) return existing.sort((a, b) => a.index - b.index);
+  if (!keys.length) throw new Error("Audio preparation was interrupted. Please choose the original file again.");
   // Rebuild all PCM parts after interrupted conversion; partial files are not a complete draft.
   let chunks: Float32Array[] = [], samples = 0, index = 0, offset = 0;
   const flush = async () => {
@@ -95,6 +98,7 @@ export async function materializeDraft(id: string) {
     if (samples >= 16000 * 180) await flush();
   }
   await flush();
+  if (draft) await db.put("drafts", { ...draft, materialized: true });
   return (await db.getAllFromIndex("files", "draft", id)).sort((a, b) => a.index - b.index);
 }
 export async function importAudio(file: File, draft: RecordingDraft) {
@@ -114,6 +118,7 @@ export async function importAudio(file: File, draft: RecordingDraft) {
       const blob = encodeWav([rendered.getChannelData(0)]);
       await (await database()).put("files", { draftId: draft.id, index, file: blob, name: `${file.name}-${index}.wav`, duration, offset });
     }
+    await saveDraft({ ...draft, duration: audio.duration, state: "ready", materialized: true });
   } catch (error) {
     await discardDraft(draft.id);
     throw error instanceof Error ? error : new Error("This device could not read that audio format.");
